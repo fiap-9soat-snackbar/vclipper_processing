@@ -1,0 +1,63 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: vclipper-processing-orchestration
+  data:
+    mongodb:
+      uri: ${MONGODB_URI:mongodb://localhost:27017/vclipper}
+  servlet:
+    multipart:
+      max-file-size: 500MB
+      max-request-size: 500MB
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+    deserialization:
+      fail-on-unknown-properties: false
+
+aws:
+  region: ${AWS_REGION:us-east-1}
+  s3:
+    bucket-name: ${AWS_S3_BUCKET:vclipper-videos-dev}
+  sqs:
+    processing-queue-url: ${AWS_SQS_PROCESSING_QUEUE_URL}
+  sns:
+    notification-topic-arn: ${AWS_SNS_NOTIFICATION_TOPIC_ARN}
+
+vclipper:
+  video:
+    max-size-mb: 500
+    allowed-formats: mp4,avi,mov,wmv,flv,webm
+  processing:
+    timeout-minutes: 30
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: when-authorized
+
+info:
+  app:
+    name: VClipper Processing Orchestration Service
+    description: Handles video upload, processing workflow orchestration, and status tracking
+  features:
+    - Video Upload & Validation
+    - Processing Status Tracking
+    - AWS S3 Integration
+    - SQS Message Publishing
+    - SNS Notifications
+
+logging:
+  level:
+    com.vclipper: DEBUG
+    org.springframework.web: INFO
+    org.springframework.data.mongodb: INFO
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
+    file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"

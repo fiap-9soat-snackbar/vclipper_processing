@@ -1,0 +1,27 @@
+services:
+  processing-service:
+    build: .
+    ports:
+      - "8080:8080"
+      - "5005:5005"  # Debug port
+    environment:
+      - MONGODB_URI=mongodb://mongodb:27017/vclipper
+      - JAVA_OPTS=-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005
+      # AWS credentials from your local ~/.aws/credentials
+    depends_on:
+      - mongodb
+    volumes:
+      - .:/app
+      - ~/.aws:/root/.aws:ro
+
+  mongodb:
+    image: mongo:8.0.10
+    ports:
+      - "27017:27017"
+    environment:
+      - MONGO_INITDB_DATABASE=vclipper
+    volumes:
+      - mongodb_data:/data/db
+
+volumes:
+  mongodb_data:
