@@ -382,16 +382,28 @@ GET /api/videos → VideoProcessingController → ListUserVideosUseCase → Mong
 - [ ] `GlobalExceptionHandler.java` - Centralized error handling
 
 #### **VS1.2 Infrastructure Layer (Persistence)**
-- [ ] `VideoRepositoryAdapter.java` - MongoDB repository implementation
-- [ ] `VideoProcessingEntity.java` - MongoDB document entity
+- [ ] `VideoRepositoryAdapter.java` - MongoDB repository implementation (single record approach)
+- [ ] `VideoProcessingEntity.java` - MongoDB document entity (current state model)
 - [ ] `VideoProcessingRepository.java` - Spring Data MongoDB repository
 - [ ] `EntityMapper.java` - Domain ↔ Entity mapping
 
-#### **VS1.3 Infrastructure Layer (Mock AWS Adapters)**
-- [ ] `MockS3FileStorageAdapter.java` - Console logging file storage simulation
-- [ ] `MockSQSMessageAdapter.java` - Console logging message queue simulation
-- [ ] `MockSNSNotificationAdapter.java` - Console logging notification simulation
-- [ ] `MockUserServiceAdapter.java` - Simple user validation
+**Data Model Strategy: Hybrid Approach**
+- **VS1**: Single record per video (current state) - Fast queries, simple implementation
+- **VS2**: Add event sourcing collection (audit trail) - Complete history, debugging, analytics
+- **Rationale**: Balance between simplicity and auditability, fast current state queries with complete audit trail
+
+#### **VS1.3 Infrastructure Layer (Mock AWS Adapters) ✅ COMPLETED**
+- [x] `MockS3FileStorageAdapter.java` - Console logging file storage simulation with realistic behavior
+- [x] `MockSQSMessageAdapter.java` - Console logging message queue simulation with delayed messaging
+- [x] `MockSNSNotificationAdapter.java` - Console logging notification simulation with template formatting
+- [x] `MockUserServiceAdapter.java` - Simple user validation with predefined test users
+
+**Folder Structure Reorganized:**
+- [x] `infrastructure/adapters/persistence/` - MongoDB adapters
+- [x] `infrastructure/adapters/storage/` - S3 file storage adapters (mock + future real)
+- [x] `infrastructure/adapters/messaging/` - SQS message queue adapters (mock + future real)
+- [x] `infrastructure/adapters/notification/` - SNS notification adapters (mock + future real)
+- [x] `infrastructure/adapters/user/` - User service adapters (mock + future real)
 
 #### **VS1.4 Configuration & Wiring**
 - [ ] `InfrastructureConfiguration.java` - Wire adapters with ports
@@ -404,12 +416,16 @@ GET /api/videos → VideoProcessingController → ListUserVideosUseCase → Mong
 - [ ] Update `quick-test.sh` - Add API endpoint validation
 - [ ] Docker container testing with real HTTP requests
 
-### **Vertical Slice 2: Download URLs (1 hour) 📋 PLANNED**
+### **Vertical Slice 2: Download URLs + Event Sourcing (1.5 hours) 📋 PLANNED**
 
 #### **Extend Existing Implementation:**
 - [ ] Add download endpoint to `VideoProcessingController`
 - [ ] Implement mock presigned URL generation
-- [ ] Test complete upload → status → download flow
+- [ ] **Add Event Sourcing**: `VideoProcessingEventEntity.java` - Audit trail collection
+- [ ] **Add Event Repository**: `VideoProcessingEventRepository.java` - Event persistence
+- [ ] **Enhance Domain Events**: Complete audit trail with status transitions
+- [ ] **Analytics Queries**: Failure patterns, retry success rates, processing times
+- [ ] Test complete upload → status → download flow with full audit trail
 
 ### **Vertical Slice 3: Real AWS Integration (2 hours) 📋 PLANNED**
 
