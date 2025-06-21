@@ -338,21 +338,141 @@ src/main/java/com/vclipper/processing/
 - [x] `ProcessingCompletedEvent.java` - Processing success
 - [x] `ProcessingFailedEvent.java` - Processing failure
 
-### **Phase 3: Application Layer (1.5 hours)**
+### **Phase 3: Application Layer (1.5 hours) ✅ COMPLETED**
 
-#### **3.1 Port Interfaces**
-- [ ] `VideoRepositoryPort.java` - Data persistence operations
-- [ ] `FileStoragePort.java` - S3 file operations
-- [ ] `MessageQueuePort.java` - SQS messaging operations
-- [ ] `NotificationPort.java` - SNS notification operations
-- [ ] `UserServicePort.java` - User service integration
+#### **3.1 Port Interfaces ✅**
+- [x] `VideoRepositoryPort.java` - Data persistence operations
+- [x] `FileStoragePort.java` - S3 file operations with metadata support
+- [x] `MessageQueuePort.java` - SQS messaging operations with delayed messaging for retry/throttling
+- [x] `NotificationPort.java` - SNS notification operations with template support
+- [x] `UserServicePort.java` - User service integration
 
-#### **3.2 Use Cases**
-- [ ] `SubmitVideoProcessingUseCase.java` - Handle video upload and queue processing
-- [ ] `GetProcessingStatusUseCase.java` - Retrieve processing status
-- [ ] `ListUserVideosUseCase.java` - List user's videos with status
-- [ ] `GetVideoDownloadUrlUseCase.java` - Generate presigned download URLs
-- [ ] `UpdateProcessingStatusUseCase.java` - Update status from processing service
+#### **3.2 Use Cases ✅**
+- [x] `SubmitVideoProcessingUseCase.java` - Handle video upload and queue processing (configurable file size limits)
+- [x] `GetProcessingStatusUseCase.java` - Retrieve processing status with authorization
+- [x] `ListUserVideosUseCase.java` - List user's videos with status (sorted by creation date)
+- [x] `GetVideoDownloadUrlUseCase.java` - Generate presigned download URLs (configurable expiration)
+- [x] `UpdateProcessingStatusUseCase.java` - Update status from processing service with notifications
+
+#### **3.3 Configuration & Dependency Injection ✅**
+- [x] `ProcessingProperties.java` - Configuration properties from application.yml
+- [x] `UseCaseConfiguration.java` - Spring configuration for dependency injection
+- [x] Updated `application.yml` - Configurable values (file size, URL expiration, retry settings)
+- [x] Clean architecture compliance - No @Service annotations in application layer
+
+## 🔄 **REVISED APPROACH: Vertical Slice Implementation**
+
+**Rationale**: Without API routes and adapters, the application cannot be meaningfully tested in Docker containers. Switching to vertical slice approach for immediate feedback and end-to-end validation.
+
+### **Vertical Slice 1: Video Upload & Status Flow (2-3 hours) 🔄 IN PROGRESS**
+
+#### **Complete End-to-End Implementation:**
+```
+POST /api/videos/upload → VideoProcessingController → SubmitVideoProcessingUseCase → MongoDB + Mock AWS
+GET /api/videos/{id}/status → VideoProcessingController → GetProcessingStatusUseCase → MongoDB
+GET /api/videos → VideoProcessingController → ListUserVideosUseCase → MongoDB
+```
+
+#### **VS1.1 API Layer (Controllers & DTOs)**
+- [ ] `VideoProcessingController.java` - REST endpoints for upload, status, list
+- [ ] `VideoUploadRequest.java` - Multipart file upload DTO
+- [ ] `VideoUploadResponse.java` - Upload confirmation response
+- [ ] `ProcessingStatusResponse.java` - Status information response
+- [ ] `VideoListResponse.java` - User videos list response
+- [ ] `GlobalExceptionHandler.java` - Centralized error handling
+
+#### **VS1.2 Infrastructure Layer (Persistence)**
+- [ ] `VideoRepositoryAdapter.java` - MongoDB repository implementation
+- [ ] `VideoProcessingEntity.java` - MongoDB document entity
+- [ ] `VideoProcessingRepository.java` - Spring Data MongoDB repository
+- [ ] `EntityMapper.java` - Domain ↔ Entity mapping
+
+#### **VS1.3 Infrastructure Layer (Mock AWS Adapters)**
+- [ ] `MockS3FileStorageAdapter.java` - Console logging file storage simulation
+- [ ] `MockSQSMessageAdapter.java` - Console logging message queue simulation
+- [ ] `MockSNSNotificationAdapter.java` - Console logging notification simulation
+- [ ] `MockUserServiceAdapter.java` - Simple user validation
+
+#### **VS1.4 Configuration & Wiring**
+- [ ] `InfrastructureConfiguration.java` - Wire adapters with ports
+- [ ] Update `application.yml` - MongoDB connection settings
+- [ ] Update Docker Compose - Ensure MongoDB connectivity
+
+#### **VS1.5 Testing & Validation**
+- [ ] Create test video files for upload
+- [ ] Create `test-upload-flow.sh` - End-to-end testing script
+- [ ] Update `quick-test.sh` - Add API endpoint validation
+- [ ] Docker container testing with real HTTP requests
+
+### **Vertical Slice 2: Download URLs (1 hour) 📋 PLANNED**
+
+#### **Extend Existing Implementation:**
+- [ ] Add download endpoint to `VideoProcessingController`
+- [ ] Implement mock presigned URL generation
+- [ ] Test complete upload → status → download flow
+
+### **Vertical Slice 3: Real AWS Integration (2 hours) 📋 PLANNED**
+
+#### **Replace Mock Adapters:**
+- [ ] `S3FileStorageAdapter.java` - Real AWS S3 integration
+- [ ] `SQSMessageAdapter.java` - Real AWS SQS integration
+- [ ] `SNSNotificationAdapter.java` - Real AWS SNS integration
+- [ ] AWS configuration and credentials setup
+- [ ] Production-like testing with real AWS services
+
+## 📋 **FUTURE PHASES (To be implemented after Vertical Slices)**
+
+### **Phase 4: Infrastructure Layer (2 hours) 📋 PLANNED**
+
+#### **4.1 Configuration Classes**
+- [ ] `ProcessingConfig.java` - Main configuration
+- [ ] `S3Config.java` - S3 client configuration
+- [ ] `SQSConfig.java` - SQS client configuration
+- [ ] `SNSConfig.java` - SNS client configuration
+- [ ] `MongoConfig.java` - MongoDB configuration
+
+#### **4.2 Persistence Adapters**
+- [ ] `VideoRepositoryAdapter.java` - MongoDB repository implementation (if not done in VS1)
+- [ ] `VideoProcessingEntity.java` - MongoDB document entity (if not done in VS1)
+- [ ] `VideoProcessingRepository.java` - Spring Data MongoDB repository (if not done in VS1)
+
+#### **4.3 External Service Adapters**
+- [ ] `S3FileStorageAdapter.java` - S3 operations (upload, download, presigned URLs)
+- [ ] `SQSMessageAdapter.java` - SQS message publishing
+- [ ] `SNSNotificationAdapter.java` - SNS notification sending
+- [ ] `UserServiceAdapter.java` - User service integration (if needed)
+
+### **Phase 5: API Layer (1 hour) 📋 PLANNED**
+
+#### **5.1 REST Controllers**
+- [ ] `VideoProcessingController.java` - Video upload and processing endpoints (if not done in VS1)
+- [ ] `VideoStatusController.java` - Status tracking endpoints (if not done in VS1)
+- [ ] `GlobalExceptionHandler.java` - Centralized error handling (if not done in VS1)
+
+#### **5.2 DTOs and Validation**
+- [ ] `VideoUploadRequest.java` - Multipart file upload request (if not done in VS1)
+- [ ] `VideoUploadResponse.java` - Upload confirmation response (if not done in VS1)
+- [ ] `ProcessingStatusResponse.java` - Status information response (if not done in VS1)
+- [ ] `VideoListResponse.java` - User videos list response (if not done in VS1)
+- [ ] `VideoDownloadResponse.java` - Download URL response
+- [ ] `ErrorResponse.java` - Standardized error response
+
+### **Phase 6: Testing & Integration (1 hour) 📋 PLANNED**
+
+#### **6.1 Unit Tests**
+- [ ] Domain entity tests with validation scenarios
+- [ ] Use case tests with mocked dependencies
+- [ ] Adapter tests with mocked external services
+
+#### **6.2 Integration Tests**
+- [ ] Controller integration tests
+- [ ] MongoDB integration tests with Testcontainers
+- [ ] AWS service integration tests
+
+#### **6.3 Local Testing Scripts**
+- [ ] Create `test-processing-service.sh` script (if not done in VS1)
+- [ ] Docker Compose setup for local testing (if not done in VS1)
+- [ ] Postman collection for API testing
 
 ### **Phase 4: Infrastructure Layer (2 hours)**
 

@@ -98,8 +98,107 @@ else
     print_status "SUCCESS" "Domain layer is framework-agnostic"
 fi
 
-# Test 4: Business logic validation
-print_section "PHASE 4: BUSINESS LOGIC VALIDATION"
+# Check for @Service annotations in application layer (should be clean)
+if grep -r "@Service" src/main/java/com/vclipper/processing/application/ 2>/dev/null; then
+    print_status "ERROR" "Application layer contains @Service annotations (clean architecture violation)"
+    exit 1
+else
+    print_status "SUCCESS" "Application layer is framework-agnostic (no @Service annotations)"
+fi
+
+# Test 4: Application layer validation (Phase 3)
+print_section "PHASE 4: APPLICATION LAYER VALIDATION"
+print_status "INFO" "🎯 Validating application layer structure..."
+
+# Check if all port interfaces exist
+port_files=(
+    "src/main/java/com/vclipper/processing/application/ports/VideoRepositoryPort.java"
+    "src/main/java/com/vclipper/processing/application/ports/FileStoragePort.java"
+    "src/main/java/com/vclipper/processing/application/ports/MessageQueuePort.java"
+    "src/main/java/com/vclipper/processing/application/ports/NotificationPort.java"
+    "src/main/java/com/vclipper/processing/application/ports/UserServicePort.java"
+)
+
+missing_ports=0
+for file in "${port_files[@]}"; do
+    if [[ -f "$file" ]]; then
+        print_status "SUCCESS" "Found port: $(basename "$file")"
+    else
+        print_status "ERROR" "Missing port: $file"
+        missing_ports=$((missing_ports + 1))
+    fi
+done
+
+if [[ $missing_ports -eq 0 ]]; then
+    print_status "SUCCESS" "All port interfaces present"
+else
+    print_status "ERROR" "$missing_ports port interfaces missing"
+    exit 1
+fi
+
+# Check if all use cases exist
+usecase_files=(
+    "src/main/java/com/vclipper/processing/application/usecases/SubmitVideoProcessingUseCase.java"
+    "src/main/java/com/vclipper/processing/application/usecases/GetProcessingStatusUseCase.java"
+    "src/main/java/com/vclipper/processing/application/usecases/ListUserVideosUseCase.java"
+    "src/main/java/com/vclipper/processing/application/usecases/GetVideoDownloadUrlUseCase.java"
+    "src/main/java/com/vclipper/processing/application/usecases/UpdateProcessingStatusUseCase.java"
+)
+
+missing_usecases=0
+for file in "${usecase_files[@]}"; do
+    if [[ -f "$file" ]]; then
+        print_status "SUCCESS" "Found use case: $(basename "$file")"
+    else
+        print_status "ERROR" "Missing use case: $file"
+        missing_usecases=$((missing_usecases + 1))
+    fi
+done
+
+if [[ $missing_usecases -eq 0 ]]; then
+    print_status "SUCCESS" "All use cases present"
+else
+    print_status "ERROR" "$missing_usecases use cases missing"
+    exit 1
+fi
+
+# Test 5: Configuration validation
+print_section "PHASE 5: CONFIGURATION VALIDATION"
+print_status "INFO" "⚙️ Validating configuration setup..."
+
+# Check configuration files
+config_files=(
+    "src/main/java/com/vclipper/processing/infrastructure/config/ProcessingProperties.java"
+    "src/main/java/com/vclipper/processing/infrastructure/config/UseCaseConfiguration.java"
+)
+
+missing_config=0
+for file in "${config_files[@]}"; do
+    if [[ -f "$file" ]]; then
+        print_status "SUCCESS" "Found config: $(basename "$file")"
+    else
+        print_status "ERROR" "Missing config: $file"
+        missing_config=$((missing_config + 1))
+    fi
+done
+
+if [[ $missing_config -eq 0 ]]; then
+    print_status "SUCCESS" "All configuration files present"
+else
+    print_status "ERROR" "$missing_config configuration files missing"
+    exit 1
+fi
+
+# Check for configurable properties in application.yml
+if grep -q "vclipper.processing" src/main/resources/application.yml; then
+    print_status "SUCCESS" "Configuration properties found in application.yml"
+else
+    print_status "ERROR" "Configuration properties missing in application.yml"
+    exit 1
+fi
+
+# Test 6: Business logic validation
+print_section "PHASE 6: BUSINESS LOGIC VALIDATION"
 print_status "INFO" "💼 Validating business logic implementation..."
 
 # Check for key business methods
@@ -124,8 +223,16 @@ else
     exit 1
 fi
 
-# Test 5: Package structure validation
-print_section "PHASE 5: PACKAGE STRUCTURE VALIDATION"
+# Check for use case business logic
+if grep -q "execute" src/main/java/com/vclipper/processing/application/usecases/SubmitVideoProcessingUseCase.java; then
+    print_status "SUCCESS" "SubmitVideoProcessingUseCase contains execute method"
+else
+    print_status "ERROR" "SubmitVideoProcessingUseCase missing execute method"
+    exit 1
+fi
+
+# Test 7: Package structure validation
+print_section "PHASE 7: PACKAGE STRUCTURE VALIDATION"
 print_status "INFO" "📦 Validating package structure..."
 
 expected_packages=(
@@ -148,14 +255,37 @@ for package in "${expected_packages[@]}"; do
     fi
 done
 
+# Test 8: Dependency injection validation
+print_section "PHASE 8: DEPENDENCY INJECTION VALIDATION"
+print_status "INFO" "🔗 Validating dependency injection setup..."
+
+# Check for @Bean annotations in configuration
+if grep -q "@Bean" src/main/java/com/vclipper/processing/infrastructure/config/UseCaseConfiguration.java; then
+    print_status "SUCCESS" "Spring @Bean configuration found"
+else
+    print_status "ERROR" "Spring @Bean configuration missing"
+    exit 1
+fi
+
+# Check for @EnableConfigurationProperties
+if grep -q "@EnableConfigurationProperties" src/main/java/com/vclipper/processing/infrastructure/config/UseCaseConfiguration.java; then
+    print_status "SUCCESS" "Configuration properties enabled"
+else
+    print_status "ERROR" "Configuration properties not enabled"
+    exit 1
+fi
+
 # Final summary
 print_section "SUMMARY"
 print_status "SUCCESS" "🎉 Quick tests completed successfully!"
-print_status "INFO" "📊 Domain layer: ✅ Complete"
+print_status "INFO" "📊 Phase 1 (Setup): ✅ Complete"
+print_status "INFO" "📊 Phase 2 (Domain): ✅ Complete"
+print_status "INFO" "📊 Phase 3 (Application): ✅ Complete"
 print_status "INFO" "📊 Clean architecture: ✅ Compliant"
 print_status "INFO" "📊 Business logic: ✅ Implemented"
+print_status "INFO" "📊 Configuration: ✅ Externalized"
 print_status "INFO" "📊 Build status: ✅ Passing"
 
 echo ""
-print_status "INFO" "🚀 Ready for Phase 3: Application Layer development!"
+print_status "INFO" "🚀 Ready for Phase 4: Infrastructure Layer development!"
 echo ""

@@ -27,11 +27,16 @@ aws:
     notification-topic-arn: ${AWS_SNS_NOTIFICATION_TOPIC_ARN}
 
 vclipper:
-  video:
-    max-size-mb: 500
-    allowed-formats: mp4,avi,mov,wmv,flv,webm
   processing:
-    timeout-minutes: 30
+    video:
+      max-size-bytes: 524288000  # 500MB in bytes
+      allowed-formats: mp4,avi,mov,wmv,flv,webm
+    download:
+      url-expiration-minutes: 60  # 1 hour
+    retry:
+      max-attempts: 3
+      initial-delay-seconds: 30
+      max-delay-seconds: 300  # 5 minutes
 
 management:
   endpoints:
