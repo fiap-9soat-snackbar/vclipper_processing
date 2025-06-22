@@ -3,8 +3,6 @@ package com.vclipper.processing.infrastructure.adapters.storage;
 import com.vclipper.processing.application.ports.FileStoragePort;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.stereotype.Component;
-
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.LocalDateTime;
@@ -17,7 +15,6 @@ import java.util.concurrent.ConcurrentHashMap;
  * Mock implementation of S3 file storage for development and testing
  * Simulates S3 operations with console logging and in-memory metadata storage
  */
-@Component
 public class MockS3FileStorageAdapter implements FileStoragePort {
     
     private static final Logger logger = LoggerFactory.getLogger(MockS3FileStorageAdapter.class);

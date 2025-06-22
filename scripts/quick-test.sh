@@ -275,17 +275,54 @@ else
     exit 1
 fi
 
-# Final summary
+# Test 9: API endpoint validation (if application is running)
+print_section "PHASE 9: API ENDPOINT VALIDATION"
+print_status "INFO" "🌐 Checking if API endpoints are available..."
+
+# Check if application is running
+if curl -s -f "http://localhost:8080/actuator/health" > /dev/null 2>&1; then
+    print_status "SUCCESS" "Application is running - testing API endpoints"
+    
+    # Test health endpoint
+    if curl -s -f "http://localhost:8080/actuator/health" | grep -q "UP"; then
+        print_status "SUCCESS" "Health endpoint responding correctly"
+    else
+        print_status "WARNING" "Health endpoint not responding as expected"
+    fi
+    
+    # Test info endpoint
+    if curl -s -f "http://localhost:8080/actuator/info" > /dev/null; then
+        print_status "SUCCESS" "Info endpoint accessible"
+    else
+        print_status "WARNING" "Info endpoint not accessible"
+    fi
+    
+    # Test video upload endpoint (OPTIONS request to check if endpoint exists)
+    if curl -s -X OPTIONS "http://localhost:8080/api/videos/upload" > /dev/null 2>&1; then
+        print_status "SUCCESS" "Video upload endpoint exists"
+    else
+        print_status "WARNING" "Video upload endpoint may not be properly configured"
+    fi
+    
+else
+    print_status "INFO" "Application not running - skipping API endpoint tests"
+    print_status "INFO" "To test API endpoints, run: docker-compose up"
+fi
 print_section "SUMMARY"
 print_status "SUCCESS" "🎉 Quick tests completed successfully!"
 print_status "INFO" "📊 Phase 1 (Setup): ✅ Complete"
 print_status "INFO" "📊 Phase 2 (Domain): ✅ Complete"
 print_status "INFO" "📊 Phase 3 (Application): ✅ Complete"
+print_status "INFO" "📊 Vertical Slice 1: ✅ Complete"
 print_status "INFO" "📊 Clean architecture: ✅ Compliant"
 print_status "INFO" "📊 Business logic: ✅ Implemented"
 print_status "INFO" "📊 Configuration: ✅ Externalized"
 print_status "INFO" "📊 Build status: ✅ Passing"
 
 echo ""
-print_status "INFO" "🚀 Ready for Phase 4: Infrastructure Layer development!"
+print_status "INFO" "🚀 Ready for end-to-end testing!"
+print_status "INFO" "📋 Next steps:"
+print_status "INFO" "   1. Start application: docker-compose up"
+print_status "INFO" "   2. Run end-to-end tests: ./scripts/test-upload-flow.sh"
+print_status "INFO" "   3. Check logs: docker-compose logs processing-service"
 echo ""

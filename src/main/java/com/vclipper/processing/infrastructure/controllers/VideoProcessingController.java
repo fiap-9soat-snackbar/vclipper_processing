@@ -91,12 +91,13 @@ public class VideoProcessingController {
             }
             
         } catch (IOException e) {
-            logger.error("Error reading uploaded file for user: {}", request.userId(), e);
+            logger.error("IO error reading uploaded file for user: {} - {}", request.userId(), e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(VideoUploadResponse.failure(request.userId(), request.getOriginalFilename(), 
                     "Error processing uploaded file"));
         } catch (Exception e) {
-            logger.error("Unexpected error during video upload for user: {}", request.userId(), e);
+            // Let domain exceptions bubble up, but catch unexpected system errors
+            logger.error("Unexpected system error during video upload for user: {} - {}", request.userId(), e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(VideoUploadResponse.failure(request.userId(), request.getOriginalFilename(), 
                     "Internal server error"));
@@ -113,16 +114,11 @@ public class VideoProcessingController {
         
         logger.info("Getting processing status for videoId: {}, userId: {}", videoId, userId);
         
-        try {
-            GetProcessingStatusUseCase.ProcessingStatusResponse response = 
-                getProcessingStatusUseCase.execute(videoId, userId);
-            
-            return ResponseEntity.ok(ProcessingStatusResponse.from(response));
-            
-        } catch (Exception e) {
-            logger.error("Error getting processing status for videoId: {}, userId: {}", videoId, userId, e);
-            return ResponseEntity.notFound().build();
-        }
+        // Let domain exceptions (VideoNotFoundException) bubble up to GlobalExceptionHandler
+        GetProcessingStatusUseCase.ProcessingStatusResponse response = 
+            getProcessingStatusUseCase.execute(videoId, userId);
+        
+        return ResponseEntity.ok(ProcessingStatusResponse.from(response));
     }
     
     /**
@@ -132,14 +128,9 @@ public class VideoProcessingController {
     public ResponseEntity<VideoListResponse> listUserVideos(@RequestParam String userId) {
         logger.info("Listing videos for userId: {}", userId);
         
-        try {
-            var videoSummaries = listUserVideosUseCase.execute(userId);
-            
-            return ResponseEntity.ok(VideoListResponse.from(userId, videoSummaries));
-            
-        } catch (Exception e) {
-            logger.error("Error listing videos for userId: {}", userId, e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
-        }
+        // Let any exceptions bubble up to GlobalExceptionHandler
+        var videoSummaries = listUserVideosUseCase.execute(userId);
+        
+        return ResponseEntity.ok(VideoListResponse.from(userId, videoSummaries));
     }
 }

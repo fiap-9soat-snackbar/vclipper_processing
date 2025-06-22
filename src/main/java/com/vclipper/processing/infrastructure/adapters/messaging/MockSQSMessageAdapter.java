@@ -3,8 +3,6 @@ package com.vclipper.processing.infrastructure.adapters.messaging;
 import com.vclipper.processing.application.ports.MessageQueuePort;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.stereotype.Component;
-
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.UUID;
@@ -17,7 +15,6 @@ import java.util.concurrent.TimeUnit;
  * Mock implementation of SQS message queue for development and testing
  * Simulates SQS operations with console logging and delayed message simulation
  */
-@Component
 public class MockSQSMessageAdapter implements MessageQueuePort {
     
     private static final Logger logger = LoggerFactory.getLogger(MockSQSMessageAdapter.class);

@@ -2,26 +2,65 @@ services:
   processing-service:
     build: .
     ports:
-      - "8080:8080"
+      - "${SERVER_PORT}:${SERVER_PORT}"
       - "5005:5005"  # Debug port
     environment:
-      - MONGODB_URI=mongodb://mongodb:27017/vclipper
-      - JAVA_OPTS=-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005
-      # AWS credentials from your local ~/.aws/credentials
+      # Server Configuration
+      - SERVER_PORT=${SERVER_PORT}
+      
+      # MongoDB Configuration
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT}
+      - MONGODB_DATABASE=${MONGODB_DATABASE}
+      - MONGODB_USER=${MONGODB_USER}
+      - MONGODB_PASSWORD=${MONGODB_PASSWORD}
+      
+      # File Upload Configuration
+      - MAX_FILE_SIZE=${MAX_FILE_SIZE}
+      - MAX_REQUEST_SIZE=${MAX_REQUEST_SIZE}
+      
+      # VClipper Processing Configuration
+      - VCLIPPER_MAX_FILE_SIZE_BYTES=${VCLIPPER_MAX_FILE_SIZE_BYTES}
+      - VCLIPPER_ALLOWED_FORMATS=${VCLIPPER_ALLOWED_FORMATS}
+      - VCLIPPER_DOWNLOAD_EXPIRATION_MINUTES=${VCLIPPER_DOWNLOAD_EXPIRATION_MINUTES}
+      - VCLIPPER_RETRY_MAX_ATTEMPTS=${VCLIPPER_RETRY_MAX_ATTEMPTS}
+      - VCLIPPER_RETRY_INITIAL_DELAY=${VCLIPPER_RETRY_INITIAL_DELAY}
+      - VCLIPPER_RETRY_MAX_DELAY=${VCLIPPER_RETRY_MAX_DELAY}
+      
+      # Logging Configuration
+      - LOG_LEVEL_ROOT=${LOG_LEVEL_ROOT}
+      - LOG_LEVEL_VCLIPPER=${LOG_LEVEL_VCLIPPER}
+      - LOG_LEVEL_SPRING_WEB=${LOG_LEVEL_SPRING_WEB}
+      - LOG_LEVEL_MONGODB=${LOG_LEVEL_MONGODB}
+      
+      # Java Debug Configuration
+      - JAVA_OPTS=${JAVA_OPTS}
+      
+      # AWS Configuration (commented out for mock development)
+      # Uncomment these for production with real AWS services:
+      # - AWS_REGION=${AWS_REGION}
+      # - AWS_S3_BUCKET=${AWS_S3_BUCKET}
+      # - AWS_SQS_PROCESSING_QUEUE_URL=${AWS_SQS_PROCESSING_QUEUE_URL}
+      # - AWS_SNS_NOTIFICATION_TOPIC_ARN=${AWS_SNS_NOTIFICATION_TOPIC_ARN}
     depends_on:
       - mongodb
     volumes:
       - .:/app
-      - ~/.aws:/root/.aws:ro
+      - ${MOUNT_AWS_CREDENTIALS}:/root/.aws:ro  # AWS credentials (for future use)
 
   mongodb:
     image: mongo:8.0.10
     ports:
-      - "27017:27017"
+      - "${DB_PORT}:27017"
     environment:
-      - MONGO_INITDB_DATABASE=vclipper
+      - MONGO_INITDB_ROOT_USERNAME=${MONGO_INITDB_ROOT_USERNAME}
+      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_INITDB_ROOT_PASSWORD}
+      - MONGO_INITDB_DATABASE=${MONGO_INITDB_DATABASE}
+      - MONGODB_USER=${MONGODB_USER}
+      - MONGODB_PASSWORD=${MONGODB_PASSWORD}
     volumes:
       - mongodb_data:/data/db
+      - ./scripts/mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
 
 volumes:
   mongodb_data:

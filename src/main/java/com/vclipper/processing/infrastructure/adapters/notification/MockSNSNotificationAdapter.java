@@ -4,8 +4,6 @@ import com.vclipper.processing.application.ports.NotificationPort;
 import com.vclipper.processing.domain.entity.NotificationType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.stereotype.Component;
-
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.UUID;
@@ -15,7 +13,6 @@ import java.util.concurrent.ConcurrentHashMap;
  * Mock implementation of SNS notification service for development and testing
  * Simulates SNS operations with console logging and notification tracking
  */
-@Component
 public class MockSNSNotificationAdapter implements NotificationPort {
     
     private static final Logger logger = LoggerFactory.getLogger(MockSNSNotificationAdapter.class);

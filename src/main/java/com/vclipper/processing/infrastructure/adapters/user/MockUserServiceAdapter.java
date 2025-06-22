@@ -4,8 +4,6 @@ import com.vclipper.processing.application.ports.UserServicePort;
 import com.vclipper.processing.domain.entity.User;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.stereotype.Component;
-
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
@@ -14,7 +12,6 @@ import java.util.concurrent.ConcurrentHashMap;
  * Mock implementation of User Service for development and testing
  * Simulates user service operations with predefined test users
  */
-@Component
 public class MockUserServiceAdapter implements UserServicePort {
     
     private static final Logger logger = LoggerFactory.getLogger(MockUserServiceAdapter.class);

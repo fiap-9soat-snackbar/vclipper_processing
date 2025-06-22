@@ -32,7 +32,9 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(VideoNotFoundException.class)
     public ResponseEntity<ErrorResponse> handleVideoNotFoundException(VideoNotFoundException e) {
-        logger.warn("Video not found: {}", e.getMessage());
+        // Enhanced logging with context - WARN level since it's expected user behavior
+        String videoId = extractVideoIdFromMessage(e.getMessage());
+        logger.warn("Video not found - videoId: {} - {}", videoId, e.getMessage());
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
             .body(new ErrorResponse("VIDEO_NOT_FOUND", e.getMessage(), LocalDateTime.now()));
     }
@@ -82,13 +84,17 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ValidationErrorResponse> handleValidationExceptions(MethodArgumentNotValidException e) {
-        logger.warn("Validation error: {}", e.getMessage());
+        // Changed from ERROR to WARN - validation errors are expected user behavior
+        int fieldErrorCount = e.getBindingResult().getFieldErrorCount();
+        logger.warn("Validation failed - {} field error(s)", fieldErrorCount);
         
         Map<String, String> errors = new HashMap<>();
         e.getBindingResult().getAllErrors().forEach((error) -> {
             String fieldName = ((FieldError) error).getField();
             String errorMessage = error.getDefaultMessage();
             errors.put(fieldName, errorMessage);
+            // Log each field error for better traceability (DEBUG level for details)
+            logger.debug("Validation error - field: '{}', message: '{}'", fieldName, errorMessage);
         });
         
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
@@ -123,4 +129,15 @@ public class GlobalExceptionHandler {
         Map<String, String> fieldErrors,
         LocalDateTime timestamp
     ) {}
+    
+    /**
+     * Extract video ID from exception message for better logging
+     */
+    private String extractVideoIdFromMessage(String message) {
+        // Extract video ID from message like "Video not found: invalid-id"
+        if (message != null && message.contains(": ")) {
+            return message.substring(message.lastIndexOf(": ") + 2);
+        }
+        return "unknown";
+    }
 }

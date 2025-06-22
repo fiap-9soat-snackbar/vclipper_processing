@@ -1,42 +1,44 @@
 server:
-  port: 8080
+  port: ${SERVER_PORT}
 
 spring:
   application:
     name: vclipper-processing-orchestration
   data:
     mongodb:
-      uri: ${MONGODB_URI:mongodb://localhost:27017/vclipper}
+      uri: mongodb://${MONGODB_USER}:${MONGODB_PASSWORD}@${DB_HOST}:${DB_PORT}/${MONGODB_DATABASE}
+      database: ${MONGODB_DATABASE}
   servlet:
     multipart:
-      max-file-size: 500MB
-      max-request-size: 500MB
+      max-file-size: ${MAX_FILE_SIZE}
+      max-request-size: ${MAX_REQUEST_SIZE}
   jackson:
     serialization:
       write-dates-as-timestamps: false
     deserialization:
       fail-on-unknown-properties: false
 
-aws:
-  region: ${AWS_REGION:us-east-1}
-  s3:
-    bucket-name: ${AWS_S3_BUCKET:vclipper-videos-dev}
-  sqs:
-    processing-queue-url: ${AWS_SQS_PROCESSING_QUEUE_URL}
-  sns:
-    notification-topic-arn: ${AWS_SNS_NOTIFICATION_TOPIC_ARN}
+# AWS Configuration (for production use)
+#aws:
+#  region: ${AWS_REGION}
+#  s3:
+#    bucket-name: ${AWS_S3_BUCKET}
+#  sqs:
+#    processing-queue-url: ${AWS_SQS_PROCESSING_QUEUE_URL}
+#  sns:
+#    notification-topic-arn: ${AWS_SNS_NOTIFICATION_TOPIC_ARN}
 
 vclipper:
   processing:
     video:
-      max-size-bytes: 524288000  # 500MB in bytes
-      allowed-formats: mp4,avi,mov,wmv,flv,webm
+      max-size-bytes: ${VCLIPPER_MAX_FILE_SIZE_BYTES}
+      allowed-formats: ${VCLIPPER_ALLOWED_FORMATS}
     download:
-      url-expiration-minutes: 60  # 1 hour
+      url-expiration-minutes: ${VCLIPPER_DOWNLOAD_EXPIRATION_MINUTES}
     retry:
-      max-attempts: 3
-      initial-delay-seconds: 30
-      max-delay-seconds: 300  # 5 minutes
+      max-attempts: ${VCLIPPER_RETRY_MAX_ATTEMPTS}
+      initial-delay-seconds: ${VCLIPPER_RETRY_INITIAL_DELAY}
+      max-delay-seconds: ${VCLIPPER_RETRY_MAX_DELAY}
 
 management:
   endpoints:
@@ -45,7 +47,7 @@ management:
         include: health,info,metrics
   endpoint:
     health:
-      show-details: when-authorized
+      show-details: always
 
 info:
   app:
@@ -54,15 +56,15 @@ info:
   features:
     - Video Upload & Validation
     - Processing Status Tracking
-    - AWS S3 Integration
-    - SQS Message Publishing
-    - SNS Notifications
+    - AWS S3 Integration (Mock)
+    - SQS Message Publishing (Mock)
+    - SNS Notifications (Mock)
 
 logging:
   level:
-    com.vclipper: DEBUG
-    org.springframework.web: INFO
-    org.springframework.data.mongodb: INFO
+    com.vclipper.processing: ${LOG_LEVEL_VCLIPPER}
+    org.springframework.web: ${LOG_LEVEL_SPRING_WEB}
+    org.springframework.data.mongodb: ${LOG_LEVEL_MONGODB}
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
     file: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
