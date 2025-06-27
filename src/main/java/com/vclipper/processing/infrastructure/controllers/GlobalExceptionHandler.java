@@ -10,6 +10,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
@@ -77,6 +78,20 @@ public class GlobalExceptionHandler {
         logger.warn("File size exceeded: {}", e.getMessage());
         return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE)
             .body(new ErrorResponse("FILE_TOO_LARGE", "Uploaded file exceeds maximum allowed size", LocalDateTime.now()));
+    }
+    
+    /**
+     * Handle missing request parameter exceptions
+     */
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    public ResponseEntity<ErrorResponse> handleMissingServletRequestParameterException(MissingServletRequestParameterException e) {
+        String parameterName = e.getParameterName();
+        String parameterType = e.getParameterType();
+        logger.warn("Missing required request parameter - name: '{}', type: '{}'", parameterName, parameterType);
+        
+        String message = String.format("Missing required parameter '%s' of type '%s'", parameterName, parameterType);
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+            .body(new ErrorResponse("MISSING_PARAMETER", message, LocalDateTime.now()));
     }
     
     /**

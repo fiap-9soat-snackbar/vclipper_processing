@@ -169,6 +169,21 @@ The Processing Orchestration Service handles video upload, processing workflow c
 
    The application will start at `http://localhost:8080`
 
+5. **Generate test video files (for testing)**
+   ```bash
+   # Create test MP4 files for upload testing
+   ./create_better_test_video.sh
+   ```
+
+6. **Test video upload**
+   ```bash
+   # Upload a test video to verify functionality
+   curl -X POST -H "Content-Type: multipart/form-data" \
+     -F "file=@test_videos/better_test_video.mp4;type=video/mp4" \
+     -F "userId=test-user-123" \
+     http://localhost:8080/api/videos/upload
+   ```
+
 ## 🔧 Environment Configuration
 
 The application supports flexible environment-based configuration:
@@ -249,12 +264,12 @@ src/main/java/com/vclipper/processing/
 - `GET /actuator/info` - Application information with build details
 - `GET /actuator/metrics` - Application metrics
 
-### Video Processing Endpoints (Planned)
-- `POST /api/videos/upload` - Upload video for processing
-- `GET /api/videos/{videoId}/status` - Get processing status
-- `GET /api/videos/{videoId}/download` - Get download URL
-- `GET /api/videos` - List user's videos
-- `PUT /api/videos/{videoId}/status` - Update processing status (internal)
+### Video Processing Endpoints
+- `POST /api/videos/upload` - ✅ Upload video for processing
+- `GET /api/videos/{videoId}/status` - ⚠️ Get processing status (has issues)
+- `GET /api/videos/{videoId}/download` - ❌ Get download URL (not implemented)
+- `GET /api/videos` - ✅ List user's videos
+- `PUT /api/videos/{videoId}/status` - ❌ Update processing status (internal, not implemented)
 
 ## 🧪 Testing & Validation
 
@@ -270,17 +285,84 @@ src/main/java/com/vclipper/processing/
 - ✅ Business logic implementation
 - ✅ Package organization
 
+### Test Video Generation
+
+For testing video upload functionality, use the provided script to generate test MP4 files:
+
+```bash
+# Generate a test MP4 file with proper MIME type
+./create_better_test_video.sh
+```
+
+**What the script does:**
+- Creates a minimal but valid MP4 file with proper magic bytes
+- Includes essential MP4 boxes: `ftyp` (file type), `moov` (movie metadata), `mdat` (media data)
+- Generates a file that passes MIME type validation as `video/mp4`
+- No external dependencies (pure bash implementation)
+- Output: `test_videos/better_test_video.mp4`
+
+### API Testing
+
+#### Upload Video
+```bash
+# Upload a test video (requires explicit MIME type specification)
+curl -X POST -H "Content-Type: multipart/form-data" \
+  -F "file=@test_videos/better_test_video.mp4;type=video/mp4" \
+  -F "userId=test-user-123" \
+  http://localhost:8080/api/videos/upload
+```
+
+**Expected Response:**
+```json
+{
+  "videoId": "512369db-70c7-47cc-b6bf-4ab90aed6fcf",
+  "userId": "test-user-123",
+  "originalFilename": "better_test_video.mp4",
+  "status": {
+    "value": "PENDING",
+    "description": "Video uploaded and queued for processing",
+    "isTerminal": false,
+    "finished": false
+  },
+  "message": "Video uploaded successfully and queued for processing",
+  "uploadedAt": "2025-06-27T03:08:40.73471691",
+  "success": true
+}
+```
+
+#### List User Videos
+```bash
+# List all videos for a user
+curl -s "http://localhost:8080/api/videos?userId=test-user-123" | jq .
+```
+
+#### Check Application Health
+```bash
+# Verify application and MongoDB connectivity
+curl -s http://localhost:8080/actuator/health | jq .
+```
+
 ### Current Test Results
 - ✅ **Build Status**: All 17 source files compile successfully
 - ✅ **Architecture Compliance**: No infrastructure dependencies in domain
 - ✅ **Business Logic**: All transition rules and validation implemented
 - ✅ **Package Structure**: Proper clean architecture organization
+- ✅ **Video Upload**: Successfully accepts MP4 files with proper MIME type
+- ✅ **MongoDB Integration**: Persistent storage working correctly
+- ✅ **User Validation**: Built-in user validation (test-user-123 is valid)
+- ✅ **API Endpoints**: Upload and list endpoints fully functional
 
 ### Testing Philosophy
 - **Fast Feedback Loop** - Quick validation (< 30 seconds)
 - **Clean Architecture Validation** - Automatic compliance checking
 - **Business Logic Testing** - Domain rules verification
+- **End-to-End Testing** - Complete upload workflow validation
 - **Regression Detection** - Catches breaking changes
+
+### Known Testing Notes
+- **MIME Type Detection**: Application requires explicit content-type specification in multipart uploads
+- **User Validation**: Only predefined users are accepted (e.g., `test-user-123`)
+- **File Format**: MP4 files must have proper structure and magic bytes for validation
 
 ## 🚀 Key Features Implemented
 
@@ -437,6 +519,22 @@ docker-compose up --build
    - Check file permissions: `chmod +x scripts/quick-test.sh`
    - Ensure all domain files are present
    - Verify clean architecture compliance
+
+5. **Video upload fails with "Unsupported MIME type" error**
+   - **Issue**: Application detects MIME type as `application/octet-stream` instead of `video/mp4`
+   - **Solution**: Explicitly specify content type in curl command:
+     ```bash
+     curl -X POST -H "Content-Type: multipart/form-data" \
+       -F "file=@test_videos/better_test_video.mp4;type=video/mp4" \
+       -F "userId=test-user-123" \
+       http://localhost:8080/api/videos/upload
+     ```
+   - **Note**: The `;type=video/mp4` part is crucial for proper MIME type detection
+
+6. **User validation errors**
+   - **Issue**: "User not found or inactive" error
+   - **Solution**: Use predefined valid user IDs like `test-user-123`
+   - **Note**: The application has built-in user validation for testing
 
 ### Getting Help
 

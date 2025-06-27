@@ -19,6 +19,7 @@ public class SubmitVideoProcessingUseCase {
     private final MessageQueuePort messageQueue;
     private final NotificationPort notification;
     private final UserServicePort userService;
+    private final MimeTypeDetectionPort mimeTypeDetection;
     private final long maxFileSizeBytes;
     
     public SubmitVideoProcessingUseCase(VideoRepositoryPort videoRepository,
@@ -26,12 +27,14 @@ public class SubmitVideoProcessingUseCase {
                                       MessageQueuePort messageQueue,
                                       NotificationPort notification,
                                       UserServicePort userService,
+                                      MimeTypeDetectionPort mimeTypeDetection,
                                       long maxFileSizeBytes) {
         this.videoRepository = videoRepository;
         this.fileStorage = fileStorage;
         this.messageQueue = messageQueue;
         this.notification = notification;
         this.userService = userService;
+        this.mimeTypeDetection = mimeTypeDetection;
         this.maxFileSizeBytes = maxFileSizeBytes;
     }
     
@@ -94,14 +97,23 @@ public class SubmitVideoProcessingUseCase {
             );
         }
         
-        // Validate file format
+        // Validate file format by extension
         if (!VideoFormat.isSupported(getFileExtension(request.originalFilename()))) {
             throw new InvalidVideoFormatException(getFileExtension(request.originalFilename()));
         }
         
-        // Validate MIME type
-        if (!VideoFormat.isSupportedMimeType(request.contentType())) {
-            throw new InvalidVideoFormatException("Unsupported MIME type: " + request.contentType());
+        // Detect and validate MIME type using content analysis
+        String detectedMimeType = mimeTypeDetection.detectMimeType(
+            request.inputStream(), 
+            request.originalFilename(), 
+            request.contentType()
+        );
+        
+        if (detectedMimeType == null || !mimeTypeDetection.isSupportedVideoMimeType(detectedMimeType)) {
+            throw new InvalidVideoFormatException(
+                String.format("Invalid or unsupported video format. Detected MIME type: %s, Client provided: %s", 
+                    detectedMimeType, request.contentType())
+            );
         }
     }
     

@@ -21,6 +21,7 @@ public class UseCaseConfiguration {
             MessageQueuePort messageQueue,
             NotificationPort notification,
             UserServicePort userService,
+            MimeTypeDetectionPort mimeTypeDetection,
             ProcessingProperties properties) {
         return new SubmitVideoProcessingUseCase(
             videoRepository,
@@ -28,6 +29,7 @@ public class UseCaseConfiguration {
             messageQueue,
             notification,
             userService,
+            mimeTypeDetection,
             properties.video().maxSizeBytes()
         );
     }

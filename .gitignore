@@ -58,3 +58,6 @@ Thumbs.db
 application-local.yml
 application-dev.yml
 logs/
+
+# Confidential plans
+VCLIPPER_14_DAY_TEAM_PLAN_B_CONTINGENCY.md
