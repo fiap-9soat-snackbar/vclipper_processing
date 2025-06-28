@@ -36,12 +36,12 @@ services:
       # Java Debug Configuration
       - JAVA_OPTS=${JAVA_OPTS}
       
-      # AWS Configuration (commented out for mock development)
-      # Uncomment these for production with real AWS services:
-      # - AWS_REGION=${AWS_REGION}
-      # - AWS_S3_BUCKET=${AWS_S3_BUCKET}
-      # - AWS_SQS_PROCESSING_QUEUE_URL=${AWS_SQS_PROCESSING_QUEUE_URL}
-      # - AWS_SNS_NOTIFICATION_TOPIC_ARN=${AWS_SNS_NOTIFICATION_TOPIC_ARN}
+      # AWS Configuration (enabled for real AWS integration)
+      - AWS_ACCOUNT_ID=${AWS_ACCOUNT_ID}
+      - AWS_REGION=${AWS_REGION}
+      - AWS_S3_BUCKET=${AWS_S3_BUCKET}
+      - AWS_SQS_PROCESSING_QUEUE_URL=${AWS_SQS_PROCESSING_QUEUE_URL}
+      - AWS_SNS_NOTIFICATION_TOPIC_ARN=${AWS_SNS_NOTIFICATION_TOPIC_ARN}
     depends_on:
       - mongodb
     volumes:

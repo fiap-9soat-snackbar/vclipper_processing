@@ -1,9 +1,12 @@
 package com.vclipper.processing.infrastructure.controllers;
 
 import com.vclipper.processing.application.usecases.GetProcessingStatusUseCase;
+import com.vclipper.processing.application.usecases.GetVideoDownloadUrlUseCase;
 import com.vclipper.processing.application.usecases.ListUserVideosUseCase;
 import com.vclipper.processing.application.usecases.SubmitVideoProcessingUseCase;
+import com.vclipper.processing.domain.exceptions.VideoNotFoundException;
 import com.vclipper.processing.infrastructure.controllers.dto.ProcessingStatusResponse;
+import com.vclipper.processing.infrastructure.controllers.dto.VideoDownloadResponse;
 import com.vclipper.processing.infrastructure.controllers.dto.VideoListResponse;
 import com.vclipper.processing.infrastructure.controllers.dto.VideoUploadRequest;
 import com.vclipper.processing.infrastructure.controllers.dto.VideoUploadResponse;
@@ -28,13 +31,16 @@ public class VideoProcessingController {
     
     private final SubmitVideoProcessingUseCase submitVideoProcessingUseCase;
     private final GetProcessingStatusUseCase getProcessingStatusUseCase;
+    private final GetVideoDownloadUrlUseCase getVideoDownloadUrlUseCase;
     private final ListUserVideosUseCase listUserVideosUseCase;
     
     public VideoProcessingController(SubmitVideoProcessingUseCase submitVideoProcessingUseCase,
                                    GetProcessingStatusUseCase getProcessingStatusUseCase,
+                                   GetVideoDownloadUrlUseCase getVideoDownloadUrlUseCase,
                                    ListUserVideosUseCase listUserVideosUseCase) {
         this.submitVideoProcessingUseCase = submitVideoProcessingUseCase;
         this.getProcessingStatusUseCase = getProcessingStatusUseCase;
+        this.getVideoDownloadUrlUseCase = getVideoDownloadUrlUseCase;
         this.listUserVideosUseCase = listUserVideosUseCase;
     }
     
@@ -132,5 +138,46 @@ public class VideoProcessingController {
         var videoSummaries = listUserVideosUseCase.execute(userId);
         
         return ResponseEntity.ok(VideoListResponse.from(userId, videoSummaries));
+    }
+    
+    /**
+     * Get download URL for a processed video
+     */
+    @GetMapping("/{videoId}/download")
+    public ResponseEntity<VideoDownloadResponse> getVideoDownloadUrl(
+            @PathVariable String videoId,
+            @RequestParam String userId) {
+        logger.info("Getting download URL for videoId: {}, userId: {}", videoId, userId);
+        
+        try {
+            // Execute use case to get download URL (now returns Result)
+            var result = getVideoDownloadUrlUseCase.execute(videoId, userId);
+            
+            if (result.isSuccess()) {
+                logger.info("Successfully generated download URL for video: {}", videoId);
+                return ResponseEntity.ok(VideoDownloadResponse.from(result.getValue().get()));
+            } else {
+                // Handle business error (video not ready) - this is expected behavior
+                var error = result.getError().get();
+                logger.info("Video not ready for download: videoId={}, status={}, operation={}", 
+                    error.videoId(), error.currentStatus().value(), error.operation());
+                
+                return ResponseEntity.status(HttpStatus.CONFLICT)
+                    .body(VideoDownloadResponse.error(
+                        error.videoId(),
+                        "VIDEO_NOT_READY",
+                        error.message()
+                    ));
+            }
+            
+        } catch (VideoNotFoundException e) {
+            // Security boundary - don't log details, let GlobalExceptionHandler handle
+            logger.debug("Video not found or access denied: videoId={}, userId={}", videoId, userId);
+            throw e;
+        } catch (Exception e) {
+            // Only log unexpected exceptions as errors
+            logger.error("Unexpected error generating download URL for videoId: {}, userId: {}", videoId, userId, e);
+            throw e;
+        }
     }
 }

@@ -18,15 +18,15 @@ spring:
     deserialization:
       fail-on-unknown-properties: false
 
-# AWS Configuration (for production use)
-#aws:
-#  region: ${AWS_REGION}
-#  s3:
-#    bucket-name: ${AWS_S3_BUCKET}
-#  sqs:
-#    processing-queue-url: ${AWS_SQS_PROCESSING_QUEUE_URL}
-#  sns:
-#    notification-topic-arn: ${AWS_SNS_NOTIFICATION_TOPIC_ARN}
+# AWS Configuration
+aws:
+  region: ${AWS_REGION}
+  s3:
+    bucket-name: ${AWS_S3_BUCKET}
+  sqs:
+    processing-queue-url: ${AWS_SQS_PROCESSING_QUEUE_URL}
+  sns:
+    notification-topic-arn: ${AWS_SNS_NOTIFICATION_TOPIC_ARN}
 
 vclipper:
   processing:

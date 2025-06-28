@@ -18,7 +18,6 @@ public class SubmitVideoProcessingUseCase {
     private final FileStoragePort fileStorage;
     private final MessageQueuePort messageQueue;
     private final NotificationPort notification;
-    private final UserServicePort userService;
     private final MimeTypeDetectionPort mimeTypeDetection;
     private final long maxFileSizeBytes;
     
@@ -26,14 +25,12 @@ public class SubmitVideoProcessingUseCase {
                                       FileStoragePort fileStorage,
                                       MessageQueuePort messageQueue,
                                       NotificationPort notification,
-                                      UserServicePort userService,
                                       MimeTypeDetectionPort mimeTypeDetection,
                                       long maxFileSizeBytes) {
         this.videoRepository = videoRepository;
         this.fileStorage = fileStorage;
         this.messageQueue = messageQueue;
         this.notification = notification;
-        this.userService = userService;
         this.mimeTypeDetection = mimeTypeDetection;
         this.maxFileSizeBytes = maxFileSizeBytes;
     }
@@ -46,31 +43,28 @@ public class SubmitVideoProcessingUseCase {
      */
     public VideoProcessingResponse execute(VideoProcessingSubmission request) {
         try {
-            // 1. Validate user
-            validateUser(request.userId());
-            
-            // 2. Validate video file
+            // 1. Validate video file
             validateVideoFile(request);
             
-            // 3. Store video file
+            // 2. Store video file
             String storageReference = storeVideoFile(request);
             
-            // 4. Create video metadata
+            // 3. Create video metadata
             VideoMetadata metadata = createVideoMetadata(request, storageReference);
             
-            // 5. Create processing request entity
+            // 4. Create processing request entity
             VideoProcessingRequest processingRequest = new VideoProcessingRequest(request.userId(), metadata);
             
-            // 6. Save processing request
+            // 5. Save processing request
             VideoProcessingRequest savedRequest = videoRepository.save(processingRequest);
             
-            // 7. Send processing message to queue
+            // 6. Send processing message to queue
             sendProcessingMessage(savedRequest);
             
-            // 8. Send upload confirmation notification
+            // 7. Send upload confirmation notification
             sendUploadNotification(savedRequest);
             
-            // 9. Return response
+            // 8. Return response
             return VideoProcessingResponse.success(
                 savedRequest.getVideoId(),
                 savedRequest.getStatus(),
@@ -79,12 +73,6 @@ public class SubmitVideoProcessingUseCase {
             
         } catch (Exception e) {
             throw new VideoUploadException("Failed to submit video for processing: " + e.getMessage(), e);
-        }
-    }
-    
-    private void validateUser(String userId) {
-        if (!userService.isActiveUser(userId)) {
-            throw new VideoUploadException("User not found or inactive: " + userId);
         }
     }
     

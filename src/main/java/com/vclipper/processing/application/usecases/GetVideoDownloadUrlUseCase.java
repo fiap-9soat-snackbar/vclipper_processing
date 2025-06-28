@@ -1,14 +1,18 @@
 package com.vclipper.processing.application.usecases;
 
+import com.vclipper.processing.application.common.Result;
+import com.vclipper.processing.application.common.VideoNotReadyError;
 import com.vclipper.processing.application.ports.FileStoragePort;
 import com.vclipper.processing.application.ports.VideoRepositoryPort;
 import com.vclipper.processing.domain.entity.VideoProcessingRequest;
 import com.vclipper.processing.domain.exceptions.VideoNotFoundException;
-import com.vclipper.processing.domain.exceptions.VideoProcessingException;
 
 /**
  * Use case for generating video download URLs
  * Provides secure, time-limited download URLs for processed videos
+ * 
+ * Uses Result pattern for business state validation (video not ready)
+ * Uses exceptions for security boundaries (video not found/unauthorized)
  */
 public class GetVideoDownloadUrlUseCase {
     
@@ -29,22 +33,20 @@ public class GetVideoDownloadUrlUseCase {
      * 
      * @param videoId Video identifier
      * @param userId User identifier (for authorization)
-     * @return Download URL response
+     * @return Result containing download URL response or business error
      */
-    public DownloadUrlResponse execute(String videoId, String userId) {
+    public Result<DownloadUrlResponse, VideoNotReadyError> execute(String videoId, String userId) {
         VideoProcessingRequest request = videoRepository.findById(videoId)
             .orElseThrow(() -> new VideoNotFoundException(videoId));
         
-        // Verify user owns this video
+        // Verify user owns this video (security boundary - keep as exception)
         if (!request.getUserId().equals(userId)) {
             throw new VideoNotFoundException(videoId);
         }
         
-        // Verify video is ready for download
+        // Check if video is ready for download (business state - use Result pattern)
         if (!request.isDownloadReady()) {
-            throw new VideoProcessingException(
-                "Video is not ready for download. Current status: " + request.getStatus().value()
-            );
+            return Result.failure(VideoNotReadyError.forDownload(videoId, request.getStatus()));
         }
         
         // Generate presigned download URL
@@ -53,12 +55,12 @@ public class GetVideoDownloadUrlUseCase {
             downloadUrlExpirationMinutes
         );
         
-        return new DownloadUrlResponse(
+        return Result.success(new DownloadUrlResponse(
             videoId,
             request.getMetadata().originalFilename(),
             downloadUrl,
             downloadUrlExpirationMinutes
-        );
+        ));
     }
     
     /**

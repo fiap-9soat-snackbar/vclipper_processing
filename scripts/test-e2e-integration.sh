@@ -5,8 +5,36 @@
 # ===================================================
 # Comprehensive test that validates the complete video processing workflow
 # from environment setup to API functionality and cleanup
+#
+# Usage: ./scripts/test-e2e-integration.sh [--fast] [--no-cleanup]
+#   --fast      Skip image rebuilding if images exist and are recent
+#   --no-cleanup Keep containers running after test completion
+# ===================================================
 
 set -e  # Exit on any error
+
+# Parse command line arguments
+FAST_MODE=false
+NO_CLEANUP=false
+
+for arg in "$@"; do
+    case $arg in
+        --fast)
+            FAST_MODE=true
+            shift
+            ;;
+        --no-cleanup)
+            NO_CLEANUP=true
+            shift
+            ;;
+        --help)
+            echo "Usage: $0 [--fast] [--no-cleanup]"
+            echo "  --fast      Skip rebuilding if Docker images are recent"
+            echo "  --no-cleanup Keep containers running after test"
+            exit 0
+            ;;
+    esac
+done
 
 # Load environment variables from .env file
 if [ -f .env ]; then
@@ -33,13 +61,15 @@ declare -a SECTION_STATUS=(
     "SUCCESS"  # 2: Video Upload Testing
     "SUCCESS"  # 3: Video Status Retrieval Testing
     "SUCCESS"  # 4: Video Listing Testing
-    "SUCCESS"  # 5: Error Handling Testing
-    "SUCCESS"  # 6: Mock Service Validation
-    "SUCCESS"  # 7: Database Validation
-    "SUCCESS"  # 8: Configuration Validation
-    "SUCCESS"  # 9: Application Logs Analysis
-    "SUCCESS"  # 10: Performance & Resource Usage
-    "SUCCESS"  # 11: Environment Cleanup
+    "SUCCESS"  # 5: Download URL Testing (Result Pattern)
+    "SUCCESS"  # 6: Error Handling Testing
+    "SUCCESS"  # 7: AWS S3 Integration Validation
+    "SUCCESS"  # 8: Mock Service Validation
+    "SUCCESS"  # 9: Database Validation
+    "SUCCESS"  # 10: Configuration Validation
+    "SUCCESS"  # 11: Application Logs Analysis
+    "SUCCESS"  # 12: Performance & Resource Usage
+    "SUCCESS"  # 13: Environment Cleanup
 )
 
 declare -a SECTION_NAMES=(
@@ -48,7 +78,9 @@ declare -a SECTION_NAMES=(
     "Video Upload Testing"
     "Video Status Retrieval Testing"
     "Video Listing Testing"
+    "Download URL Testing (Result Pattern)"
     "Error Handling Testing"
+    "AWS S3 Integration Validation"
     "Mock Service Validation"
     "Database Validation"
     "Configuration Validation"
@@ -151,10 +183,40 @@ print_status "INFO" "Building application..."
 run_with_timeout 300 "Maven build" mvn clean package -DskipTests
 print_status "SUCCESS" "Application built successfully"
 
+# Check if Docker images exist to avoid unnecessary rebuilds
+print_status "INFO" "Checking Docker image status..."
+PROCESSING_IMAGE_EXISTS=$(docker images -q vclipper_processing-processing-service 2>/dev/null)
+BUILD_FLAG=""
+
+if [[ -n "$PROCESSING_IMAGE_EXISTS" ]] && [[ "$FAST_MODE" == "true" ]]; then
+    print_status "INFO" "Fast mode enabled - using existing Docker images"
+    BUILD_FLAG=""
+elif [[ -n "$PROCESSING_IMAGE_EXISTS" ]]; then
+    print_status "INFO" "Docker images exist, checking if rebuild is needed..."
+    # Check if source code is newer than image (simplified check)
+    if [[ -n "$(find src/ -newer target/ 2>/dev/null | head -1)" ]] 2>/dev/null; then
+        print_status "INFO" "Source code changes detected, rebuilding images..."
+        BUILD_FLAG="--build"
+    else
+        print_status "INFO" "Using existing Docker images (no recent source changes)"
+        BUILD_FLAG=""
+    fi
+else
+    print_status "INFO" "Docker images not found, building from scratch..."
+    BUILD_FLAG="--build"
+fi
+
 # Start containers
 print_status "INFO" "Starting Docker containers..."
-run_with_timeout 300 "Docker startup" docker compose up -d --build
-print_status "SUCCESS" "Containers started successfully"
+if run_with_timeout 300 "Docker startup" docker compose up -d $BUILD_FLAG --quiet-pull; then
+    print_status "SUCCESS" "Containers started successfully"
+else
+    print_status "ERROR" "Failed to start containers"
+    print_status "INFO" "Showing recent Docker logs for debugging..."
+    docker compose logs --tail=20
+    set_section_status 0 "ERROR"
+    exit 1
+fi
 
 # Show container status
 echo "Checking container status:"
@@ -381,6 +443,99 @@ else
 fi
 
 # ===================================================
+# SECTION 5: Download URL Testing (Result Pattern)
+# ===================================================
+print_section "5" "Download URL Testing (Result Pattern)"
+
+if [[ -f ".test_video_id" ]]; then
+    VIDEO_ID=$(cat .test_video_id)
+    print_status "INFO" "Testing download URL generation for video: $VIDEO_ID"
+    
+    # Test download URL request for PENDING video (should return business error, not exception)
+    print_status "INFO" "Testing download URL for PENDING video (Result pattern validation)..."
+    
+    DOWNLOAD_RESPONSE=$(curl -s -X GET \
+        -w "%{http_code}" \
+        "http://localhost:8080/api/videos/$VIDEO_ID/download?userId=$TEST_USER_ID")
+    
+    HTTP_CODE="${DOWNLOAD_RESPONSE: -3}"
+    RESPONSE_BODY="${DOWNLOAD_RESPONSE%???}"
+    
+    print_status "INFO" "Download HTTP Code: $HTTP_CODE"
+    print_status "INFO" "Download Response: $RESPONSE_BODY"
+    
+    # Should return 409 Conflict for business rule violation (video not ready)
+    if [[ "$HTTP_CODE" == "409" ]]; then
+        print_status "SUCCESS" "Correct HTTP status for video not ready (409 Conflict)"
+        
+        # Validate Result pattern response structure
+        if echo "$RESPONSE_BODY" | grep -q '"success":false' && echo "$RESPONSE_BODY" | grep -q '"message".*not ready'; then
+            print_status "SUCCESS" "Result pattern response structure is correct"
+            
+            # Extract key information
+            MESSAGE=$(echo "$RESPONSE_BODY" | grep -o '"message":"[^"]*' | cut -d'"' -f4)
+            print_status "INFO" "Business error message: $MESSAGE"
+            
+            # Verify no exception logging noise (check logs)
+            print_status "INFO" "Checking for clean error logging (no stack traces)..."
+            RECENT_LOGS=$(docker compose logs processing-service --since=30s)
+            
+            if echo "$RECENT_LOGS" | grep -q "Video not ready for download" && ! echo "$RECENT_LOGS" | grep -q "Exception.*VideoNotReadyException"; then
+                print_status "SUCCESS" "Clean business error logging confirmed (no exception stack traces)"
+            else
+                print_status "WARNING" "May still have exception logging noise"
+                set_section_status 5 "WARNING"
+            fi
+        else
+            print_status "WARNING" "Response structure doesn't match expected Result pattern"
+            set_section_status 5 "WARNING"
+        fi
+    else
+        print_status "ERROR" "Expected HTTP 409 for video not ready, got $HTTP_CODE"
+        print_status "INFO" "Response: $RESPONSE_BODY"
+        set_section_status 5 "ERROR"
+    fi
+    
+    # Test download URL with invalid video ID (should still throw exception for security)
+    print_status "INFO" "Testing download URL with invalid video ID (security boundary)..."
+    
+    INVALID_DOWNLOAD_RESPONSE=$(curl -s -X GET \
+        -w "%{http_code}" \
+        "http://localhost:8080/api/videos/invalid-video-id/download?userId=$TEST_USER_ID")
+    
+    HTTP_CODE="${INVALID_DOWNLOAD_RESPONSE: -3}"
+    print_status "INFO" "Invalid video download HTTP Code: $HTTP_CODE"
+    
+    if [[ "$HTTP_CODE" == "404" ]]; then
+        print_status "SUCCESS" "Security boundary maintained (404 for invalid video)"
+    else
+        print_status "WARNING" "Expected HTTP 404 for invalid video, got $HTTP_CODE"
+        set_section_status 5 "WARNING"
+    fi
+    
+    # Test download URL with unauthorized user (should throw exception for security)
+    print_status "INFO" "Testing download URL with unauthorized user (security boundary)..."
+    
+    UNAUTHORIZED_DOWNLOAD_RESPONSE=$(curl -s -X GET \
+        -w "%{http_code}" \
+        "http://localhost:8080/api/videos/$VIDEO_ID/download?userId=unauthorized-user")
+    
+    HTTP_CODE="${UNAUTHORIZED_DOWNLOAD_RESPONSE: -3}"
+    print_status "INFO" "Unauthorized download HTTP Code: $HTTP_CODE"
+    
+    if [[ "$HTTP_CODE" == "404" ]]; then
+        print_status "SUCCESS" "Authorization security maintained (404 for unauthorized user)"
+    else
+        print_status "WARNING" "Expected HTTP 404 for unauthorized user, got $HTTP_CODE"
+        set_section_status 5 "WARNING"
+    fi
+    
+else
+    print_status "WARNING" "Skipping download URL test - no video ID available"
+    set_section_status 5 "WARNING"
+fi
+
+# ===================================================
 # SECTION 6: Error Handling Testing
 # ===================================================
 print_section "6" "Error Handling Testing"
@@ -440,41 +595,107 @@ else
 fi
 
 # ===================================================
-# SECTION 7: Mock Service Validation
+# SECTION 7: AWS S3 Integration Validation
 # ===================================================
-print_section "7" "Mock Service Validation"
+print_section "7" "AWS S3 Integration Validation"
 
-print_status "INFO" "Checking application logs for mock service activity..."
+print_status "INFO" "Validating real AWS S3 integration..."
 
-# Check for mock service operations in logs
-S3_OPERATIONS=$(docker compose logs processing-service | grep -c "MOCK S3" || echo "0")
-SQS_OPERATIONS=$(docker compose logs processing-service | grep -c "MOCK SQS" || echo "0")
-SNS_OPERATIONS=$(docker compose logs processing-service | grep -c "MOCK SNS" || echo "0")
-USER_SERVICE_OPERATIONS=$(docker compose logs processing-service | grep -c "MOCK USER SERVICE" || echo "0")
+# Check for real S3 operations in logs (not mock)
+S3_REAL_OPERATIONS=$(docker compose logs processing-service | grep -c "Successfully stored in S3\|S3.*ETag" || echo "0")
+S3_MOCK_OPERATIONS=$(docker compose logs processing-service | grep -c "MOCK S3" || echo "0")
 
-print_status "INFO" "S3 Mock operations logged: $S3_OPERATIONS"
-print_status "INFO" "SQS Mock operations logged: $SQS_OPERATIONS"
-print_status "INFO" "SNS Mock operations logged: $SNS_OPERATIONS"
-print_status "INFO" "User Service Mock operations logged: $USER_SERVICE_OPERATIONS"
+print_status "INFO" "Real S3 operations logged: $S3_REAL_OPERATIONS"
+print_status "INFO" "Mock S3 operations logged: $S3_MOCK_OPERATIONS"
 
-if [[ "$S3_OPERATIONS" -gt 0 && "$SQS_OPERATIONS" -gt 0 && "$SNS_OPERATIONS" -gt 0 && "$USER_SERVICE_OPERATIONS" -gt 0 ]]; then
-    print_status "SUCCESS" "All mock services are active and logging operations"
-elif [[ "$USER_SERVICE_OPERATIONS" -gt 0 ]]; then
-    print_status "WARNING" "Some mock services may not be active"
-    set_section_status 6 "WARNING"
+if [[ "$S3_REAL_OPERATIONS" -gt 0 ]]; then
+    print_status "SUCCESS" "Real AWS S3 integration is working"
+    
+    # Check for S3 bucket and key information
+    S3_BUCKET_LOGS=$(docker compose logs processing-service | grep "vclipper-video-storage-dev" | wc -l)
+    S3_KEY_LOGS=$(docker compose logs processing-service | grep "videos/[0-9]*/[0-9]*/[0-9]*/" | wc -l)
+    
+    print_status "INFO" "S3 bucket references in logs: $S3_BUCKET_LOGS"
+    print_status "INFO" "S3 key pattern matches in logs: $S3_KEY_LOGS"
+    
+    if [[ "$S3_BUCKET_LOGS" -gt 0 && "$S3_KEY_LOGS" -gt 0 ]]; then
+        print_status "SUCCESS" "S3 bucket and key structure validation passed"
+    else
+        print_status "WARNING" "S3 bucket or key structure may not be correct"
+        set_section_status 7 "WARNING"
+    fi
+    
+    # Show recent S3 operation logs
+    print_status "INFO" "Recent S3 operations:"
+    docker compose logs processing-service | grep -E "S3.*store|S3.*upload|Successfully stored in S3" | tail -3
+    
+elif [[ "$S3_MOCK_OPERATIONS" -gt 0 ]]; then
+    print_status "WARNING" "Still using Mock S3 adapter - real AWS integration not active"
+    set_section_status 7 "WARNING"
 else
-    print_status "ERROR" "Mock services appear to be inactive"
-    set_section_status 6 "ERROR"
+    print_status "ERROR" "No S3 operations detected (neither real nor mock)"
+    set_section_status 7 "ERROR"
 fi
 
-# Show recent mock service logs
-print_status "INFO" "Showing recent mock service logs..."
-docker compose logs processing-service | grep "MOCK" | tail -5
+# Validate AWS credentials are properly mounted
+print_status "INFO" "Checking AWS credentials configuration..."
+AWS_CREDS_LOGS=$(docker compose logs processing-service | grep -c "AWS\|credentials\|region" || echo "0")
+
+if [[ "$AWS_CREDS_LOGS" -gt 0 ]]; then
+    print_status "INFO" "AWS configuration references found in logs: $AWS_CREDS_LOGS"
+else
+    print_status "WARNING" "Limited AWS configuration references in logs"
+    set_section_status 7 "WARNING"
+fi
 
 # ===================================================
-# SECTION 8: Database Validation
+# SECTION 8: AWS Integration Validation
 # ===================================================
-print_section "8" "Database Validation"
+print_section "8" "AWS Integration Validation"
+
+print_status "INFO" "Validating real AWS service integrations..."
+
+# Check for real AWS operations in logs
+SQS_REAL_OPERATIONS=$(docker compose logs processing-service | grep -c "Successfully sent message to SQS\|MessageId.*sent to SQS" || echo "0")
+SNS_REAL_OPERATIONS=$(docker compose logs processing-service | grep -c "Successfully sent notification via SNS\|MessageId.*SNS" || echo "0")
+USER_SERVICE_OPERATIONS=$(docker compose logs processing-service | grep -c "MOCK USER SERVICE" || echo "0")
+
+print_status "INFO" "Real SQS operations logged: $SQS_REAL_OPERATIONS"
+print_status "INFO" "Real SNS operations logged: $SNS_REAL_OPERATIONS"
+print_status "INFO" "User Service Mock operations logged: $USER_SERVICE_OPERATIONS"
+
+if [[ "$SQS_REAL_OPERATIONS" -gt 0 && "$SNS_REAL_OPERATIONS" -gt 0 ]]; then
+    print_status "SUCCESS" "Real AWS SQS and SNS integrations are working"
+    
+    # Show recent AWS operation logs
+    print_status "INFO" "Recent SQS operations:"
+    docker compose logs processing-service | grep -E "SQS.*message|Successfully sent message to SQS" | tail -2
+    
+    print_status "INFO" "Recent SNS operations:"
+    docker compose logs processing-service | grep -E "SNS.*notification|Successfully sent notification via SNS" | tail -2
+    
+elif [[ "$SQS_REAL_OPERATIONS" -gt 0 ]]; then
+    print_status "WARNING" "SQS integration working but SNS operations not detected"
+    set_section_status 8 "WARNING"
+elif [[ "$SNS_REAL_OPERATIONS" -gt 0 ]]; then
+    print_status "WARNING" "SNS integration working but SQS operations not detected"
+    set_section_status 8 "WARNING"
+else
+    print_status "ERROR" "No real AWS SQS or SNS operations detected"
+    set_section_status 8 "ERROR"
+fi
+
+if [[ "$USER_SERVICE_OPERATIONS" -gt 0 ]]; then
+    print_status "INFO" "User Service Mock adapter is active (expected)"
+else
+    print_status "WARNING" "User Service Mock adapter may not be active"
+    set_section_status 8 "WARNING"
+fi
+
+# ===================================================
+# SECTION 9: Database Validation
+# ===================================================
+print_section "9" "Database Validation"
 
 print_status "INFO" "Validating data persistence in MongoDB..."
 
@@ -504,9 +725,9 @@ else
 fi
 
 # ===================================================
-# SECTION 9: Configuration Validation
+# SECTION 10: Configuration Validation
 # ===================================================
-print_section "9" "Configuration Validation"
+print_section "10" "Configuration Validation"
 
 print_status "INFO" "Validating configuration loading..."
 
@@ -514,10 +735,11 @@ print_status "INFO" "Validating configuration loading..."
 CONFIG_LOGS=$(docker compose logs processing-service | grep -c "Configuration\|config\|property" || echo "0")
 print_status "INFO" "Configuration-related log entries: $CONFIG_LOGS"
 
-# Test file size limits (create a large file)
+# Test file size limits (create a file larger than configured limit)
 print_status "INFO" "Testing configured file size limits..."
 LARGE_FILE="large-test-file.mp4"
-dd if=/dev/zero of="$LARGE_FILE" bs=1M count=100 2>/dev/null
+# Create 600MB file (larger than 500MB limit)
+dd if=/dev/zero of="$LARGE_FILE" bs=1M count=600 2>/dev/null
 
 LARGE_UPLOAD_RESPONSE=$(curl -s -X POST \
     -F "userId=$TEST_USER_ID" \
@@ -539,9 +761,9 @@ fi
 rm -f "$LARGE_FILE"
 
 # ===================================================
-# SECTION 10: Application Logs Analysis
+# SECTION 11: Application Logs Analysis
 # ===================================================
-print_section "10" "Application Logs Analysis"
+print_section "11" "Application Logs Analysis"
 
 print_status "INFO" "Analyzing application logs for errors and warnings..."
 
@@ -568,9 +790,9 @@ fi
 print_status "INFO" "Success log entries: $SUCCESS_COUNT"
 
 # ===================================================
-# SECTION 11: Performance and Resource Usage
+# SECTION 12: Performance and Resource Usage
 # ===================================================
-print_section "11" "Performance and Resource Usage"
+print_section "12" "Performance and Resource Usage"
 
 print_status "INFO" "Checking container resource usage..."
 
@@ -582,16 +804,22 @@ print_status "INFO" "Docker disk usage:"
 docker system df
 
 # ===================================================
-# SECTION 12: Cleanup
+# SECTION 13: Cleanup
 # ===================================================
-print_section "12" "Cleanup"
+print_section "13" "Cleanup"
 
 print_status "INFO" "Cleaning up test files..."
 rm -f "$TEST_VIDEO_FILE" .test_video_id
 
-print_status "INFO" "Cleaning up Docker environment..."
-run_with_timeout 60 "Docker cleanup" docker compose down -v --remove-orphans
-print_status "SUCCESS" "Environment cleanup completed"
+if [[ "$NO_CLEANUP" == "true" ]]; then
+    print_status "INFO" "Skipping Docker cleanup (--no-cleanup flag specified)"
+    print_status "INFO" "Containers are still running for manual inspection"
+    print_status "INFO" "To stop containers manually: docker compose down -v"
+else
+    print_status "INFO" "Cleaning up Docker environment..."
+    run_with_timeout 60 "Docker cleanup" docker compose down -v --remove-orphans
+    print_status "SUCCESS" "Environment cleanup completed"
+fi
 
 # ===================================================
 # FINAL SUMMARY

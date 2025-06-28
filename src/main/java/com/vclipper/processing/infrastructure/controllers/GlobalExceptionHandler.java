@@ -2,6 +2,7 @@ package com.vclipper.processing.infrastructure.controllers;
 
 import com.vclipper.processing.domain.exceptions.InvalidVideoFormatException;
 import com.vclipper.processing.domain.exceptions.VideoNotFoundException;
+import com.vclipper.processing.domain.exceptions.VideoNotReadyException;
 import com.vclipper.processing.domain.exceptions.VideoProcessingException;
 import com.vclipper.processing.domain.exceptions.VideoUploadException;
 import org.slf4j.Logger;
@@ -58,6 +59,18 @@ public class GlobalExceptionHandler {
         logger.warn("Video upload error: {}", e.getMessage());
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
             .body(new ErrorResponse("VIDEO_UPLOAD_ERROR", e.getMessage(), LocalDateTime.now()));
+    }
+    
+    /**
+     * Handle video not ready exceptions (business rule violations)
+     * These are expected conditions, not system errors
+     */
+    @ExceptionHandler(VideoNotReadyException.class)
+    public ResponseEntity<ErrorResponse> handleVideoNotReadyException(VideoNotReadyException e) {
+        // Log as info, not error - this is expected business behavior
+        logger.info("Video not ready for operation: {}", e.getMessage());
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+            .body(new ErrorResponse("VIDEO_NOT_READY", e.getMessage(), LocalDateTime.now()));
     }
     
     /**
