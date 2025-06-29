@@ -1,10 +1,15 @@
 package com.vclipper.processing.infrastructure.controllers;
 
+import com.vclipper.processing.application.common.Result;
+import com.vclipper.processing.application.common.VideoUploadError;
 import com.vclipper.processing.application.usecases.GetProcessingStatusUseCase;
 import com.vclipper.processing.application.usecases.GetVideoDownloadUrlUseCase;
 import com.vclipper.processing.application.usecases.ListUserVideosUseCase;
 import com.vclipper.processing.application.usecases.SubmitVideoProcessingUseCase;
+import com.vclipper.processing.domain.exceptions.InvalidVideoFormatException;
 import com.vclipper.processing.domain.exceptions.VideoNotFoundException;
+import com.vclipper.processing.domain.exceptions.VideoProcessingException;
+import com.vclipper.processing.domain.exceptions.VideoUploadException;
 import com.vclipper.processing.infrastructure.controllers.dto.ProcessingStatusResponse;
 import com.vclipper.processing.infrastructure.controllers.dto.VideoDownloadResponse;
 import com.vclipper.processing.infrastructure.controllers.dto.VideoListResponse;
@@ -70,11 +75,12 @@ public class VideoProcessingController {
                     request.getFileSizeBytes()
                 );
             
-            // Execute use case
-            SubmitVideoProcessingUseCase.VideoProcessingResponse response = 
+            // Execute use case with Result pattern
+            Result<SubmitVideoProcessingUseCase.VideoProcessingResponse, VideoUploadError> result = 
                 submitVideoProcessingUseCase.execute(submission);
             
-            if (response.success()) {
+            if (result.isSuccess()) {
+                SubmitVideoProcessingUseCase.VideoProcessingResponse response = result.getValue().get();
                 logger.info("Video upload successful for user: {}, videoId: {}", 
                     request.userId(), response.videoId());
                 
@@ -88,12 +94,13 @@ public class VideoProcessingController {
                         java.time.LocalDateTime.now()
                     ));
             } else {
-                logger.warn("Video upload failed for user: {}, error: {}", 
-                    request.userId(), response.message());
+                VideoUploadError error = result.getError().get();
+                logger.warn("Video upload validation failed for user: {}, error: {}", 
+                    request.userId(), error.message());
                 
                 return ResponseEntity.badRequest()
                     .body(VideoUploadResponse.failure(request.userId(), request.getOriginalFilename(), 
-                        response.message()));
+                        error.message()));
             }
             
         } catch (IOException e) {
@@ -101,8 +108,24 @@ public class VideoProcessingController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(VideoUploadResponse.failure(request.userId(), request.getOriginalFilename(), 
                     "Error processing uploaded file"));
+        } catch (VideoNotFoundException e) {
+            // Let domain exceptions bubble up to GlobalExceptionHandler
+            logger.debug("VideoNotFoundException during video upload for user: {} - re-throwing to GlobalExceptionHandler", request.userId());
+            throw e;
+        } catch (InvalidVideoFormatException e) {
+            // Let domain exceptions bubble up to GlobalExceptionHandler
+            logger.debug("InvalidVideoFormatException during video upload for user: {} - re-throwing to GlobalExceptionHandler", request.userId());
+            throw e;
+        } catch (VideoUploadException e) {
+            // Let domain exceptions bubble up to GlobalExceptionHandler
+            logger.debug("VideoUploadException during video upload for user: {} - re-throwing to GlobalExceptionHandler", request.userId());
+            throw e;
+        } catch (VideoProcessingException e) {
+            // Let domain exceptions bubble up to GlobalExceptionHandler
+            logger.debug("VideoProcessingException during video upload for user: {} - re-throwing to GlobalExceptionHandler", request.userId());
+            throw e;
         } catch (Exception e) {
-            // Let domain exceptions bubble up, but catch unexpected system errors
+            // Only catch unexpected system errors (non-domain exceptions)
             logger.error("Unexpected system error during video upload for user: {} - {}", request.userId(), e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(VideoUploadResponse.failure(request.userId(), request.getOriginalFilename(), 

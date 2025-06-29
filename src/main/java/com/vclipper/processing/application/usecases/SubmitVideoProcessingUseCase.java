@@ -1,9 +1,10 @@
 package com.vclipper.processing.application.usecases;
 
+import com.vclipper.processing.application.common.Result;
+import com.vclipper.processing.application.common.VideoUploadError;
 import com.vclipper.processing.application.ports.*;
 import com.vclipper.processing.domain.entity.*;
 import com.vclipper.processing.domain.enums.VideoFormat;
-import com.vclipper.processing.domain.exceptions.InvalidVideoFormatException;
 import com.vclipper.processing.domain.exceptions.VideoUploadException;
 
 import java.io.InputStream;
@@ -18,6 +19,7 @@ public class SubmitVideoProcessingUseCase {
     private final FileStoragePort fileStorage;
     private final MessageQueuePort messageQueue;
     private final NotificationPort notification;
+    private final UserServicePort userService;
     private final MimeTypeDetectionPort mimeTypeDetection;
     private final long maxFileSizeBytes;
     
@@ -25,69 +27,86 @@ public class SubmitVideoProcessingUseCase {
                                       FileStoragePort fileStorage,
                                       MessageQueuePort messageQueue,
                                       NotificationPort notification,
+                                      UserServicePort userService,
                                       MimeTypeDetectionPort mimeTypeDetection,
                                       long maxFileSizeBytes) {
         this.videoRepository = videoRepository;
         this.fileStorage = fileStorage;
         this.messageQueue = messageQueue;
         this.notification = notification;
+        this.userService = userService;
         this.mimeTypeDetection = mimeTypeDetection;
         this.maxFileSizeBytes = maxFileSizeBytes;
     }
     
     /**
-     * Submit video for processing
+     * Submit video for processing using Result pattern
      * 
      * @param request Video processing submission request
-     * @return Processing response with video ID and status
+     * @return Result containing processing response or validation error
      */
-    public VideoProcessingResponse execute(VideoProcessingSubmission request) {
+    public Result<VideoProcessingResponse, VideoUploadError> execute(VideoProcessingSubmission request) {
         try {
-            // 1. Validate video file
-            validateVideoFile(request);
+            // 1. Validate video file (business validation - use Result pattern)
+            Result<Void, VideoUploadError> validationResult = validateVideoFile(request);
+            if (validationResult.isFailure()) {
+                return Result.failure(validationResult.getError().get());
+            }
             
-            // 2. Store video file
+            // 2. Validate user (business validation - use Result pattern)
+            Result<Void, VideoUploadError> userValidationResult = validateUser(request.userId());
+            if (userValidationResult.isFailure()) {
+                return Result.failure(userValidationResult.getError().get());
+            }
+            
+            // 3. Store video file
             String storageReference = storeVideoFile(request);
             
-            // 3. Create video metadata
+            // 4. Create video metadata
             VideoMetadata metadata = createVideoMetadata(request, storageReference);
             
-            // 4. Create processing request entity
+            // 5. Create processing request entity
             VideoProcessingRequest processingRequest = new VideoProcessingRequest(request.userId(), metadata);
             
-            // 5. Save processing request
+            // 6. Save processing request
             VideoProcessingRequest savedRequest = videoRepository.save(processingRequest);
             
-            // 6. Send processing message to queue
+            // 7. Send processing message to queue
             sendProcessingMessage(savedRequest);
             
-            // 7. Send upload confirmation notification
+            // 8. Send upload confirmation notification
             sendUploadNotification(savedRequest);
             
-            // 8. Return response
-            return VideoProcessingResponse.success(
+            // 9. Return response
+            return Result.success(VideoProcessingResponse.success(
                 savedRequest.getVideoId(),
                 savedRequest.getStatus(),
                 "Video uploaded successfully and queued for processing"
-            );
+            ));
             
         } catch (Exception e) {
             throw new VideoUploadException("Failed to submit video for processing: " + e.getMessage(), e);
         }
     }
     
-    private void validateVideoFile(VideoProcessingSubmission request) {
+    /**
+     * Validate video file using Result pattern for business validation
+     */
+    private Result<Void, VideoUploadError> validateVideoFile(VideoProcessingSubmission request) {
         // Validate file size
         if (request.fileSizeBytes() > maxFileSizeBytes) {
-            throw new VideoUploadException(
-                String.format("File size %d bytes exceeds maximum allowed size %d bytes", 
-                    request.fileSizeBytes(), maxFileSizeBytes)
-            );
+            return Result.failure(VideoUploadError.fileTooLarge(request.fileSizeBytes(), maxFileSizeBytes));
+        }
+        
+        // Validate file is not empty
+        if (request.fileSizeBytes() == 0) {
+            return Result.failure(VideoUploadError.emptyFile());
         }
         
         // Validate file format by extension
-        if (!VideoFormat.isSupported(getFileExtension(request.originalFilename()))) {
-            throw new InvalidVideoFormatException(getFileExtension(request.originalFilename()));
+        String fileExtension = getFileExtension(request.originalFilename());
+        if (!VideoFormat.isSupported(fileExtension)) {
+            return Result.failure(VideoUploadError.invalidFormat(fileExtension));
         }
         
         // Detect and validate MIME type using content analysis
@@ -98,11 +117,22 @@ public class SubmitVideoProcessingUseCase {
         );
         
         if (detectedMimeType == null || !mimeTypeDetection.isSupportedVideoMimeType(detectedMimeType)) {
-            throw new InvalidVideoFormatException(
-                String.format("Invalid or unsupported video format. Detected MIME type: %s, Client provided: %s", 
-                    detectedMimeType, request.contentType())
-            );
+            return Result.failure(VideoUploadError.invalidFormat(
+                String.format("Detected: %s, Provided: %s", detectedMimeType, request.contentType())
+            ));
         }
+        
+        return Result.success(null);
+    }
+    
+    /**
+     * Validate user using Result pattern for business validation
+     */
+    private Result<Void, VideoUploadError> validateUser(String userId) {
+        if (!userService.isActiveUser(userId)) {
+            return Result.failure(VideoUploadError.invalidUser(userId));
+        }
+        return Result.success(null);
     }
     
     private String storeVideoFile(VideoProcessingSubmission request) {

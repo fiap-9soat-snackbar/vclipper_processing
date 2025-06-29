@@ -435,6 +435,30 @@ src/main/java/com/vclipper/vclipping/
   - [x] Test error scenarios and failure handling (Result pattern implementation)
   - [x] Validate data consistency across services (MongoDB persistence verified)
   - [x] Performance testing with concurrent users (14/14 integration tests passing)
+- [ ] **Complete download functionality implementation** 🔴 **CRITICAL**
+  - [ ] **Task 1: Create status update API endpoint** (1-2 hours)
+    - [ ] Add `PUT /api/videos/{videoId}/status` endpoint in VideoProcessingController
+    - [ ] Create VideoStatusUpdateRequest DTO with status, processedFileS3Key, processingCompletedAt
+    - [ ] Create VideoStatusUpdateResponse DTO for API response
+    - [ ] Add proper validation and error handling for status transitions
+  - [ ] **Task 2: Extend domain model** (30 minutes)
+    - [ ] Add processedFileS3Key field to VideoProcessingRequest entity
+    - [ ] Add processingCompletedAt field to VideoProcessingRequest entity
+    - [ ] Update VideoProcessingEntity MongoDB document mapping
+    - [ ] Add methods to update status with processed file information
+  - [ ] **Task 3: Implement UpdateVideoStatusUseCase** (1 hour)
+    - [ ] Create UpdateVideoStatusUseCase with status transition validation
+    - [ ] Implement business rules for PENDING → COMPLETED transitions
+    - [ ] Add processed file S3 key storage and validation
+    - [ ] Return proper Result/Response objects
+  - [ ] **Task 4: Verify download URL generation** (30 minutes)
+    - [ ] Confirm GetVideoDownloadUrlUseCase uses processedFileS3Key for COMPLETED videos
+    - [ ] Ensure presigned URLs point to processed ZIP files, not original videos
+    - [ ] Test URL generation with proper expiration times
+  - [ ] **Task 5: Create testing script for vclipping simulation** (30 minutes)
+    - [ ] Create simulate-processing-completion.sh script
+    - [ ] Test complete flow: upload → mark completed → download URL generation
+    - [ ] Verify end-to-end download functionality working
 - [ ] **Frontend integration**
   - [ ] Connect frontend to real backend APIs
   - [ ] Update frontend to handle download URLs

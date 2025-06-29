@@ -20,6 +20,7 @@ public class UseCaseConfiguration {
             FileStoragePort fileStorage,
             MessageQueuePort messageQueue,
             NotificationPort notification,
+            UserServicePort userService,
             MimeTypeDetectionPort mimeTypeDetection,
             ProcessingProperties properties) {
         return new SubmitVideoProcessingUseCase(
@@ -27,6 +28,7 @@ public class UseCaseConfiguration {
             fileStorage,
             messageQueue,
             notification,
+            userService,
             mimeTypeDetection,
             properties.video().maxSizeBytes()
         );

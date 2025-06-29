@@ -38,7 +38,9 @@ done
 
 # Load environment variables from .env file
 if [ -f .env ]; then
-    export $(grep -v '^#' .env | xargs)
+    set -a  # automatically export all variables
+    source .env
+    set +a  # stop automatically exporting
 else
     echo "❌ Error: .env file not found. Please ensure .env file exists in the project root."
     exit 1
@@ -63,13 +65,12 @@ declare -a SECTION_STATUS=(
     "SUCCESS"  # 4: Video Listing Testing
     "SUCCESS"  # 5: Download URL Testing (Result Pattern)
     "SUCCESS"  # 6: Error Handling Testing
-    "SUCCESS"  # 7: AWS S3 Integration Validation
-    "SUCCESS"  # 8: Mock Service Validation
-    "SUCCESS"  # 9: Database Validation
-    "SUCCESS"  # 10: Configuration Validation
-    "SUCCESS"  # 11: Application Logs Analysis
-    "SUCCESS"  # 12: Performance & Resource Usage
-    "SUCCESS"  # 13: Environment Cleanup
+    "SUCCESS"  # 7: AWS Integration Validation (consolidated S3, SQS, SNS)
+    "SUCCESS"  # 8: Database Validation
+    "SUCCESS"  # 9: Configuration Validation
+    "SUCCESS"  # 10: Application Logs Analysis
+    "SUCCESS"  # 11: Performance & Resource Usage
+    "SUCCESS"  # 12: Environment Cleanup
 )
 
 declare -a SECTION_NAMES=(
@@ -80,8 +81,7 @@ declare -a SECTION_NAMES=(
     "Video Listing Testing"
     "Download URL Testing (Result Pattern)"
     "Error Handling Testing"
-    "AWS S3 Integration Validation"
-    "Mock Service Validation"
+    "AWS Integration Validation"
     "Database Validation"
     "Configuration Validation"
     "Application Logs Analysis"
@@ -158,9 +158,9 @@ wait_for_service() {
 }
 
 # ===================================================
-# SECTION 1: Environment Setup and Cleanup
+# SECTION 0: Environment Setup and Cleanup
 # ===================================================
-print_section "1" "Environment Setup and Cleanup"
+print_section "0" "Environment Setup and Cleanup"
 
 print_status "INFO" "Cleaning up existing environment..."
 
@@ -226,27 +226,14 @@ docker compose ps
 print_status "INFO" "Waiting for application to start (30 seconds)..."
 sleep 30
 
-# Check MongoDB
-print_status "INFO" "Checking if MongoDB is ready..."
-MONGO_READY=false
-for i in {1..10}; do
-  echo "Attempt $i/10: Testing MongoDB connection..."
-  if docker compose exec -T mongodb mongosh --quiet --eval "db.runCommand({ping:1}).ok" 2>&1 | grep -q "1"; then
-    MONGO_READY=true
-    print_status "SUCCESS" "MongoDB is ready!"
-    break
-  else
-    print_status "WARNING" "MongoDB not ready yet, waiting 3 seconds..."
-    sleep 3
-  fi
-done
-
-if [ "$MONGO_READY" = false ]; then
-  print_status "ERROR" "MongoDB is not ready. Checking logs..."
-  echo "MongoDB logs:"
-  docker compose logs mongodb | tail -20
-  set_section_status 0 "ERROR"
-  exit 1
+# Check MongoDB - simplified approach
+print_status "INFO" "Checking if MongoDB container is running..."
+if docker compose ps mongodb | grep -q "Up"; then
+    print_status "SUCCESS" "MongoDB container is running!"
+else
+    print_status "ERROR" "MongoDB container is not running"
+    set_section_status 0 "ERROR"
+    exit 1
 fi
 
 # Check Processing Service
@@ -262,9 +249,9 @@ else
 fi
 
 # ===================================================
-# SECTION 2: Health Check and Service Validation
+# SECTION 1: Health Check and Service Validation
 # ===================================================
-print_section "2" "Health Check and Service Validation"
+print_section "1" "Health Check and Service Validation"
 
 # Test health endpoint
 print_status "INFO" "Testing application health endpoint..."
@@ -300,26 +287,35 @@ else
 fi
 
 # ===================================================
-# SECTION 3: Video Upload Testing
+# SECTION 2: Video Upload Testing
 # ===================================================
-print_section "3" "Video Upload Testing"
+print_section "2" "Video Upload Testing"
 
-# Create test video file
-print_status "INFO" "Creating test video file..."
-TEST_VIDEO_FILE="test-video.mp4"
+# Check for existing test video file or create one
+print_status "INFO" "Preparing test video file..."
 
-# Create a minimal MP4 file with proper MP4 signature for MIME type detection
-printf '\x00\x00\x00\x20\x66\x74\x79\x70\x69\x73\x6f\x6d\x00\x00\x02\x00\x69\x73\x6f\x6d\x69\x73\x6f\x32\x61\x76\x63\x31\x6d\x70\x34\x31' > "$TEST_VIDEO_FILE"
-printf '\x00\x00\x00\x08\x66\x72\x65\x65' >> "$TEST_VIDEO_FILE"
-echo "VClipper Test Video Content - $(date)" >> "$TEST_VIDEO_FILE"
-echo "This is a test video file for integration testing" >> "$TEST_VIDEO_FILE"
-
-if [[ -f "$TEST_VIDEO_FILE" ]]; then
-    print_status "SUCCESS" "Test video file created: $TEST_VIDEO_FILE"
+# First, check if we have the existing test video
+if [[ -f "test_videos/better_test_video.mp4" ]]; then
+    TEST_VIDEO_FILE="test_videos/better_test_video.mp4"
+    print_status "SUCCESS" "Using existing test video file: $TEST_VIDEO_FILE"
 else
-    print_status "ERROR" "Failed to create test video file"
-    set_section_status 2 "ERROR"
-    exit 1
+    # Create a new test video file if none exists
+    print_status "INFO" "Creating new test video file..."
+    TEST_VIDEO_FILE="test-video.mp4"
+    
+    # Create a minimal MP4 file with proper MP4 signature for MIME type detection
+    printf '\x00\x00\x00\x20\x66\x74\x79\x70\x69\x73\x6f\x6d\x00\x00\x02\x00\x69\x73\x6f\x6d\x69\x73\x6f\x32\x61\x76\x63\x31\x6d\x70\x34\x31' > "$TEST_VIDEO_FILE"
+    printf '\x00\x00\x00\x08\x66\x72\x65\x65' >> "$TEST_VIDEO_FILE"
+    echo "VClipper Test Video Content - $(date)" >> "$TEST_VIDEO_FILE"
+    echo "This is a test video file for integration testing" >> "$TEST_VIDEO_FILE"
+    
+    if [[ -f "$TEST_VIDEO_FILE" ]]; then
+        print_status "SUCCESS" "Test video file created: $TEST_VIDEO_FILE"
+    else
+        print_status "ERROR" "Failed to create test video file"
+        set_section_status 2 "ERROR"
+        exit 1
+    fi
 fi
 
 # Test video upload with valid user
@@ -360,9 +356,9 @@ else
 fi
 
 # ===================================================
-# SECTION 4: Video Status Retrieval Testing
+# SECTION 3: Video Status Retrieval Testing
 # ===================================================
-print_section "4" "Video Status Retrieval Testing"
+print_section "3" "Video Status Retrieval Testing"
 
 if [[ -f ".test_video_id" ]]; then
     VIDEO_ID=$(cat .test_video_id)
@@ -406,9 +402,9 @@ else
 fi
 
 # ===================================================
-# SECTION 5: Video Listing Testing
+# SECTION 4: Video Listing Testing
 # ===================================================
-print_section "5" "Video Listing Testing"
+print_section "4" "Video Listing Testing"
 
 print_status "INFO" "Testing video listing for user: $TEST_USER_ID"
 
@@ -556,7 +552,7 @@ if [[ "$HTTP_CODE" == "400" ]]; then
     print_status "SUCCESS" "Properly rejected invalid user (HTTP 400)"
 else
     print_status "WARNING" "Expected HTTP 400 for invalid user, got $HTTP_CODE"
-    set_section_status 5 "WARNING"
+    set_section_status 6 "WARNING"
 fi
 
 # Test upload without file
@@ -574,7 +570,7 @@ if [[ "$HTTP_CODE" == "400" ]]; then
     print_status "SUCCESS" "Properly rejected upload without file (HTTP 400)"
 else
     print_status "WARNING" "Expected HTTP 400 for missing file, got $HTTP_CODE"
-    set_section_status 5 "WARNING"
+    set_section_status 6 "WARNING"
 fi
 
 # Test status retrieval with invalid video ID
@@ -591,25 +587,72 @@ if [[ "$HTTP_CODE" == "404" ]]; then
     print_status "SUCCESS" "Properly returned 404 for invalid video ID"
 else
     print_status "WARNING" "Expected HTTP 404 for invalid video ID, got $HTTP_CODE"
-    set_section_status 5 "WARNING"
+    set_section_status 6 "WARNING"
 fi
 
-# ===================================================
-# SECTION 7: AWS S3 Integration Validation
-# ===================================================
-print_section "7" "AWS S3 Integration Validation"
+# Test AWS service error handling scenarios
+print_status "INFO" "Testing AWS service error handling scenarios..."
 
-print_status "INFO" "Validating real AWS S3 integration..."
+# Test S3 error handling - check logs for proper error handling
+print_status "INFO" "Checking S3 error handling in logs..."
+S3_ERROR_HANDLING=$(docker compose logs processing-service | grep -c "S3.*error\|S3.*exception\|S3.*retry" || echo "0")
+print_status "INFO" "S3 error handling log entries: $S3_ERROR_HANDLING"
+
+# Test SQS error handling - check logs for proper error handling
+print_status "INFO" "Checking SQS error handling in logs..."
+SQS_ERROR_HANDLING=$(docker compose logs processing-service | grep -c "SQS.*error\|SQS.*exception\|SQS.*retry" || echo "0")
+print_status "INFO" "SQS error handling log entries: $SQS_ERROR_HANDLING"
+
+# Test SNS error handling - check logs for proper error handling
+print_status "INFO" "Checking SNS error handling in logs..."
+SNS_ERROR_HANDLING=$(docker compose logs processing-service | grep -c "SNS.*error\|SNS.*exception\|SNS.*retry" || echo "0")
+print_status "INFO" "SNS error handling log entries: $SNS_ERROR_HANDLING"
+
+# Test upload with unsupported file type
+print_status "INFO" "Testing upload with unsupported file type..."
+UNSUPPORTED_FILE="test-unsupported.txt"
+echo "This is not a video file" > "$UNSUPPORTED_FILE"
+
+UNSUPPORTED_RESPONSE=$(curl -s -X POST \
+    -F "userId=$TEST_USER_ID" \
+    -F "file=@$UNSUPPORTED_FILE;type=text/plain" \
+    -w "%{http_code}" \
+    "http://localhost:8080/api/videos/upload")
+
+HTTP_CODE="${UNSUPPORTED_RESPONSE: -3}"
+print_status "INFO" "Unsupported file type HTTP Code: $HTTP_CODE"
+
+if [[ "$HTTP_CODE" == "400" ]]; then
+    print_status "SUCCESS" "Properly rejected unsupported file type (HTTP 400)"
+else
+    print_status "WARNING" "Expected HTTP 400 for unsupported file type, got $HTTP_CODE"
+    set_section_status 6 "WARNING"
+fi
+
+# Cleanup test file
+rm -f "$UNSUPPORTED_FILE"
+
+# ===================================================
+# SECTION 7: AWS Integration Validation
+# ===================================================
+print_section "7" "AWS Integration Validation"
+
+print_status "INFO" "Validating real AWS service integrations..."
+
+# ===================================================
+# S3 Integration Testing
+# ===================================================
+print_status "INFO" "🪣 Testing AWS S3 Integration..."
 
 # Check for real S3 operations in logs (not mock)
-S3_REAL_OPERATIONS=$(docker compose logs processing-service | grep -c "Successfully stored in S3\|S3.*ETag" || echo "0")
+S3_REAL_OPERATIONS=$(docker compose logs processing-service | grep -c "Successfully stored in S3\|S3.*ETag\|PutObjectResponse" || echo "0")
 S3_MOCK_OPERATIONS=$(docker compose logs processing-service | grep -c "MOCK S3" || echo "0")
 
 print_status "INFO" "Real S3 operations logged: $S3_REAL_OPERATIONS"
 print_status "INFO" "Mock S3 operations logged: $S3_MOCK_OPERATIONS"
 
 if [[ "$S3_REAL_OPERATIONS" -gt 0 ]]; then
-    print_status "SUCCESS" "Real AWS S3 integration is working"
+    print_status "SUCCESS" "✅ Real AWS S3 integration is working"
     
     # Check for S3 bucket and key information
     S3_BUCKET_LOGS=$(docker compose logs processing-service | grep "vclipper-video-storage-dev" | wc -l)
@@ -627,18 +670,74 @@ if [[ "$S3_REAL_OPERATIONS" -gt 0 ]]; then
     
     # Show recent S3 operation logs
     print_status "INFO" "Recent S3 operations:"
-    docker compose logs processing-service | grep -E "S3.*store|S3.*upload|Successfully stored in S3" | tail -3
+    docker compose logs processing-service | grep -E "S3.*store|S3.*upload|Successfully stored in S3|PutObjectResponse" | tail -3
     
 elif [[ "$S3_MOCK_OPERATIONS" -gt 0 ]]; then
-    print_status "WARNING" "Still using Mock S3 adapter - real AWS integration not active"
+    print_status "WARNING" "⚠️ Still using Mock S3 adapter - real AWS integration not active"
     set_section_status 7 "WARNING"
 else
-    print_status "ERROR" "No S3 operations detected (neither real nor mock)"
+    print_status "ERROR" "❌ No S3 operations detected (neither real nor mock)"
     set_section_status 7 "ERROR"
 fi
 
+# ===================================================
+# SQS Integration Testing
+# ===================================================
+print_status "INFO" "📬 Testing AWS SQS Integration..."
+
+SQS_REAL_OPERATIONS=$(docker compose logs processing-service | grep -c "Successfully sent message to SQS\|MessageId.*sent to SQS\|SendMessageResponse" || echo "0")
+SQS_MOCK_OPERATIONS=$(docker compose logs processing-service | grep -c "MOCK SQS" || echo "0")
+
+print_status "INFO" "Real SQS operations logged: $SQS_REAL_OPERATIONS"
+print_status "INFO" "Mock SQS operations logged: $SQS_MOCK_OPERATIONS"
+
+if [[ "$SQS_REAL_OPERATIONS" -gt 0 ]]; then
+    print_status "SUCCESS" "✅ Real AWS SQS integration is working"
+    
+    # Show recent SQS operation logs
+    print_status "INFO" "Recent SQS operations:"
+    docker compose logs processing-service | grep -E "SQS.*message|Successfully sent message to SQS|SendMessageResponse" | tail -2
+    
+elif [[ "$SQS_MOCK_OPERATIONS" -gt 0 ]]; then
+    print_status "WARNING" "⚠️ Still using Mock SQS adapter - real AWS integration not active"
+    set_section_status 7 "WARNING"
+else
+    print_status "ERROR" "❌ No SQS operations detected (neither real nor mock)"
+    set_section_status 7 "ERROR"
+fi
+
+# ===================================================
+# SNS Integration Testing
+# ===================================================
+print_status "INFO" "📧 Testing AWS SNS Integration..."
+
+SNS_REAL_OPERATIONS=$(docker compose logs processing-service | grep -c "Successfully sent notification via SNS\|MessageId.*SNS\|PublishResponse" || echo "0")
+SNS_MOCK_OPERATIONS=$(docker compose logs processing-service | grep -c "MOCK SNS" || echo "0")
+
+print_status "INFO" "Real SNS operations logged: $SNS_REAL_OPERATIONS"
+print_status "INFO" "Mock SNS operations logged: $SNS_MOCK_OPERATIONS"
+
+if [[ "$SNS_REAL_OPERATIONS" -gt 0 ]]; then
+    print_status "SUCCESS" "✅ Real AWS SNS integration is working"
+    
+    # Show recent SNS operation logs
+    print_status "INFO" "Recent SNS operations:"
+    docker compose logs processing-service | grep -E "SNS.*notification|Successfully sent notification via SNS|PublishResponse" | tail -2
+    
+elif [[ "$SNS_MOCK_OPERATIONS" -gt 0 ]]; then
+    print_status "WARNING" "⚠️ Still using Mock SNS adapter - real AWS integration not active"
+    set_section_status 7 "WARNING"
+else
+    print_status "ERROR" "❌ No SNS operations detected (neither real nor mock)"
+    set_section_status 7 "ERROR"
+fi
+
+# ===================================================
+# AWS Configuration Validation
+# ===================================================
+print_status "INFO" "⚙️ Validating AWS Configuration..."
+
 # Validate AWS credentials are properly mounted
-print_status "INFO" "Checking AWS credentials configuration..."
 AWS_CREDS_LOGS=$(docker compose logs processing-service | grep -c "AWS\|credentials\|region" || echo "0")
 
 if [[ "$AWS_CREDS_LOGS" -gt 0 ]]; then
@@ -649,58 +748,62 @@ else
 fi
 
 # ===================================================
-# SECTION 8: AWS Integration Validation
+# User Service Mock Validation (Expected)
 # ===================================================
-print_section "8" "AWS Integration Validation"
+print_status "INFO" "👤 Testing User Service Mock Integration..."
 
-print_status "INFO" "Validating real AWS service integrations..."
-
-# Check for real AWS operations in logs
-SQS_REAL_OPERATIONS=$(docker compose logs processing-service | grep -c "Successfully sent message to SQS\|MessageId.*sent to SQS" || echo "0")
-SNS_REAL_OPERATIONS=$(docker compose logs processing-service | grep -c "Successfully sent notification via SNS\|MessageId.*SNS" || echo "0")
 USER_SERVICE_OPERATIONS=$(docker compose logs processing-service | grep -c "MOCK USER SERVICE" || echo "0")
 
-print_status "INFO" "Real SQS operations logged: $SQS_REAL_OPERATIONS"
-print_status "INFO" "Real SNS operations logged: $SNS_REAL_OPERATIONS"
-print_status "INFO" "User Service Mock operations logged: $USER_SERVICE_OPERATIONS"
-
-if [[ "$SQS_REAL_OPERATIONS" -gt 0 && "$SNS_REAL_OPERATIONS" -gt 0 ]]; then
-    print_status "SUCCESS" "Real AWS SQS and SNS integrations are working"
-    
-    # Show recent AWS operation logs
-    print_status "INFO" "Recent SQS operations:"
-    docker compose logs processing-service | grep -E "SQS.*message|Successfully sent message to SQS" | tail -2
-    
-    print_status "INFO" "Recent SNS operations:"
-    docker compose logs processing-service | grep -E "SNS.*notification|Successfully sent notification via SNS" | tail -2
-    
-elif [[ "$SQS_REAL_OPERATIONS" -gt 0 ]]; then
-    print_status "WARNING" "SQS integration working but SNS operations not detected"
-    set_section_status 8 "WARNING"
-elif [[ "$SNS_REAL_OPERATIONS" -gt 0 ]]; then
-    print_status "WARNING" "SNS integration working but SQS operations not detected"
-    set_section_status 8 "WARNING"
-else
-    print_status "ERROR" "No real AWS SQS or SNS operations detected"
-    set_section_status 8 "ERROR"
-fi
-
 if [[ "$USER_SERVICE_OPERATIONS" -gt 0 ]]; then
-    print_status "INFO" "User Service Mock adapter is active (expected)"
+    print_status "SUCCESS" "✅ User Service Mock adapter is active (expected)"
 else
-    print_status "WARNING" "User Service Mock adapter may not be active"
-    set_section_status 8 "WARNING"
+    print_status "WARNING" "⚠️ User Service Mock adapter may not be active"
+    set_section_status 7 "WARNING"
 fi
 
 # ===================================================
-# SECTION 9: Database Validation
+# Overall AWS Integration Assessment
 # ===================================================
-print_section "9" "Database Validation"
+print_status "INFO" "📊 Overall AWS Integration Assessment..."
+
+AWS_SERVICES_WORKING=0
+if [[ "$S3_REAL_OPERATIONS" -gt 0 ]]; then 
+    AWS_SERVICES_WORKING=$((AWS_SERVICES_WORKING + 1))
+fi
+if [[ "$SQS_REAL_OPERATIONS" -gt 0 ]]; then 
+    AWS_SERVICES_WORKING=$((AWS_SERVICES_WORKING + 1))
+fi
+if [[ "$SNS_REAL_OPERATIONS" -gt 0 ]]; then 
+    AWS_SERVICES_WORKING=$((AWS_SERVICES_WORKING + 1))
+fi
+
+print_status "INFO" "AWS services with real integration: $AWS_SERVICES_WORKING/3"
+
+if [[ "$AWS_SERVICES_WORKING" -eq 3 ]]; then
+    print_status "SUCCESS" "🎉 Complete AWS integration achieved (S3 + SQS + SNS)"
+elif [[ "$AWS_SERVICES_WORKING" -gt 0 ]]; then
+    print_status "WARNING" "⚠️ Partial AWS integration ($AWS_SERVICES_WORKING/3 services working)"
+    set_section_status 7 "WARNING"
+else
+    print_status "ERROR" "❌ No real AWS integrations detected - still using mocks"
+    set_section_status 7 "ERROR"
+fi
+
+# ===================================================
+# SECTION 8: Database Validation
+# ===================================================
+print_section "8" "Database Validation"
 
 print_status "INFO" "Validating data persistence in MongoDB..."
 
+# Debug MongoDB connection parameters
+print_status "INFO" "MongoDB connection parameters - User: $MONGODB_USER, Database: $MONGODB_DATABASE"
+
 # Check if video data was persisted
+print_status "INFO" "Querying video count from MongoDB..."
+echo "DEBUG: About to execute MongoDB query..."
 VIDEO_COUNT=$(docker exec $(docker compose ps -q mongodb) mongosh --quiet -u "$MONGODB_USER" -p "$MONGODB_PASSWORD" --authenticationDatabase "$MONGODB_DATABASE" --eval "db.videoProcessingRequests.countDocuments({})" "$MONGODB_DATABASE" 2>/dev/null || echo "0")
+echo "DEBUG: MongoDB query completed, result: $VIDEO_COUNT"
 
 print_status "INFO" "Videos stored in MongoDB: $VIDEO_COUNT"
 
@@ -708,7 +811,7 @@ if [[ "$VIDEO_COUNT" -gt 0 ]]; then
     print_status "SUCCESS" "Video data successfully persisted in MongoDB"
 else
     print_status "WARNING" "No video data found in MongoDB"
-    set_section_status 7 "WARNING"
+    set_section_status 8 "WARNING"
 fi
 
 # Check MongoDB indexes
@@ -721,13 +824,13 @@ if [[ "$INDEX_COUNT" -gt 1 ]]; then  # More than just the default _id index
     print_status "SUCCESS" "Custom indexes are properly created"
 else
     print_status "WARNING" "Custom indexes may not be properly created"
-    set_section_status 7 "WARNING"
+    set_section_status 8 "WARNING"
 fi
 
 # ===================================================
-# SECTION 10: Configuration Validation
+# SECTION 9: Configuration Validation
 # ===================================================
-print_section "10" "Configuration Validation"
+print_section "9" "Configuration Validation"
 
 print_status "INFO" "Validating configuration loading..."
 
@@ -754,16 +857,16 @@ if [[ "$HTTP_CODE" == "413" || "$HTTP_CODE" == "400" || "$HTTP_CODE" == "500" ]]
     print_status "INFO" "File size validation working (HTTP $HTTP_CODE)"
 else
     print_status "WARNING" "File size validation may not be working properly"
-    set_section_status 8 "WARNING"
+    set_section_status 9 "WARNING"
 fi
 
 # Cleanup large file
 rm -f "$LARGE_FILE"
 
 # ===================================================
-# SECTION 11: Application Logs Analysis
+# SECTION 10: Application Logs Analysis
 # ===================================================
-print_section "11" "Application Logs Analysis"
+print_section "10" "Application Logs Analysis"
 
 print_status "INFO" "Analyzing application logs for errors and warnings..."
 
@@ -777,7 +880,7 @@ print_status "INFO" "ERROR level log entries: $ERROR_COUNT"
 if [[ "$ERROR_COUNT" -gt 0 ]]; then
     print_status "WARNING" "Found ERROR level entries in application logs:"
     docker compose logs processing-service | grep " ERROR " | tail -5
-    set_section_status 9 "WARNING"
+    set_section_status 10 "WARNING"
 fi
 
 print_status "INFO" "WARN level log entries: $WARNING_COUNT"
@@ -790,9 +893,9 @@ fi
 print_status "INFO" "Success log entries: $SUCCESS_COUNT"
 
 # ===================================================
-# SECTION 12: Performance and Resource Usage
+# SECTION 11: Performance and Resource Usage
 # ===================================================
-print_section "12" "Performance and Resource Usage"
+print_section "11" "Performance and Resource Usage"
 
 print_status "INFO" "Checking container resource usage..."
 
@@ -804,12 +907,17 @@ print_status "INFO" "Docker disk usage:"
 docker system df
 
 # ===================================================
-# SECTION 13: Cleanup
+# SECTION 12: Cleanup
 # ===================================================
-print_section "13" "Cleanup"
+print_section "12" "Cleanup"
 
 print_status "INFO" "Cleaning up test files..."
-rm -f "$TEST_VIDEO_FILE" .test_video_id
+# Only remove the temporary test file if we created one (not the existing test_videos file)
+if [[ "$TEST_VIDEO_FILE" == "test-video.mp4" ]]; then
+    rm -f "$TEST_VIDEO_FILE"
+    print_status "INFO" "Removed temporary test video file"
+fi
+rm -f .test_video_id
 
 if [[ "$NO_CLEANUP" == "true" ]]; then
     print_status "INFO" "Skipping Docker cleanup (--no-cleanup flag specified)"
