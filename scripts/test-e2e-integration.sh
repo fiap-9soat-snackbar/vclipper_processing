@@ -64,13 +64,14 @@ declare -a SECTION_STATUS=(
     "SUCCESS"  # 3: Video Status Retrieval Testing
     "SUCCESS"  # 4: Video Listing Testing
     "SUCCESS"  # 5: Download URL Testing (Result Pattern)
-    "SUCCESS"  # 6: Error Handling Testing
-    "SUCCESS"  # 7: AWS Integration Validation (consolidated S3, SQS, SNS)
-    "SUCCESS"  # 8: Database Validation
-    "SUCCESS"  # 9: Configuration Validation
-    "SUCCESS"  # 10: Application Logs Analysis
-    "SUCCESS"  # 11: Performance & Resource Usage
-    "SUCCESS"  # 12: Environment Cleanup
+    "SUCCESS"  # 6: Processing Workflow Simulation (PENDING → PROCESSING → COMPLETED)
+    "SUCCESS"  # 7: Error Handling Testing
+    "SUCCESS"  # 8: AWS Integration Validation (consolidated S3, SQS, SNS)
+    "SUCCESS"  # 9: Database Validation
+    "SUCCESS"  # 10: Configuration Validation
+    "SUCCESS"  # 11: Application Logs Analysis
+    "SUCCESS"  # 12: Performance & Resource Usage
+    "SUCCESS"  # 13: Environment Cleanup
 )
 
 declare -a SECTION_NAMES=(
@@ -80,6 +81,7 @@ declare -a SECTION_NAMES=(
     "Video Status Retrieval Testing"
     "Video Listing Testing"
     "Download URL Testing (Result Pattern)"
+    "Processing Workflow Simulation (PENDING → PROCESSING → COMPLETED)"
     "Error Handling Testing"
     "AWS Integration Validation"
     "Database Validation"
@@ -532,9 +534,163 @@ else
 fi
 
 # ===================================================
-# SECTION 6: Error Handling Testing
+# SECTION 6: Processing Workflow Simulation (PENDING → PROCESSING → COMPLETED)
 # ===================================================
-print_section "6" "Error Handling Testing"
+print_section "6" "Processing Workflow Simulation (PENDING → PROCESSING → COMPLETED)"
+
+# Set base URL for API calls
+BASE_URL="http://localhost:8080"
+
+if [[ -f ".test_video_id" ]]; then
+    TEST_VIDEO_ID=$(cat .test_video_id)
+    print_status "INFO" "Testing complete processing workflow for video: $TEST_VIDEO_ID"
+    
+    # Generate processed file S3 key (simulating what vclipping would create)
+    PROCESSED_S3_KEY="processed/${TEST_USER_ID}/${TEST_VIDEO_ID}/clipped-frames.zip"
+    COMPLETION_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+    
+    print_status "INFO" "Simulated processed file S3 key: $PROCESSED_S3_KEY"
+    print_status "INFO" "Processing completion time: $COMPLETION_TIME"
+    
+    # Step 1: Mark video as PROCESSING
+    print_status "INFO" "Step 1: Marking video as PROCESSING..."
+    
+    PROCESSING_PAYLOAD=$(cat <<EOF
+{
+  "status": {
+    "value": "PROCESSING",
+    "description": "Video is currently being processed",
+    "isTerminal": false
+  },
+  "processedFileS3Key": null,
+  "processingCompletedAt": null,
+  "errorMessage": null
+}
+EOF
+)
+    
+    print_status "INFO" "Request payload:"
+    echo "$PROCESSING_PAYLOAD" | jq .
+    
+    PROCESSING_RESPONSE=$(curl -s -w "\nHTTP_STATUS:%{http_code}" \
+      -X PUT "${BASE_URL}/api/videos/${TEST_VIDEO_ID}/status" \
+      -H "Content-Type: application/json" \
+      -d "$PROCESSING_PAYLOAD")
+    
+    PROCESSING_HTTP_STATUS=$(echo "$PROCESSING_RESPONSE" | grep "HTTP_STATUS:" | cut -d: -f2)
+    PROCESSING_RESPONSE_BODY=$(echo "$PROCESSING_RESPONSE" | sed '/HTTP_STATUS:/d')
+    
+    print_status "INFO" "Processing Response (HTTP $PROCESSING_HTTP_STATUS):"
+    echo "$PROCESSING_RESPONSE_BODY" | jq . 2>/dev/null || echo "$PROCESSING_RESPONSE_BODY"
+    
+    if [ "$PROCESSING_HTTP_STATUS" = "200" ]; then
+        print_status "SUCCESS" "✅ Step 1: Video marked as PROCESSING (HTTP $PROCESSING_HTTP_STATUS)"
+        
+        # Verify the status was updated correctly
+        if echo "$PROCESSING_RESPONSE_BODY" | jq -e '.newStatus.value == "PROCESSING"' > /dev/null 2>&1; then
+            print_status "SUCCESS" "✅ Status correctly updated to PROCESSING"
+            
+            # Step 2: Mark video as COMPLETED
+            print_status "INFO" "Step 2: Marking video as COMPLETED..."
+        
+        COMPLETION_PAYLOAD=$(cat <<EOF
+{
+  "status": {
+    "value": "COMPLETED",
+    "description": "Video processing completed successfully",
+    "isTerminal": true
+  },
+  "processedFileS3Key": "${PROCESSED_S3_KEY}",
+  "processingCompletedAt": "${COMPLETION_TIME}",
+  "errorMessage": null
+}
+EOF
+)
+        
+        COMPLETION_RESPONSE=$(curl -s -w "\nHTTP_STATUS:%{http_code}" \
+          -X PUT "${BASE_URL}/api/videos/${TEST_VIDEO_ID}/status" \
+          -H "Content-Type: application/json" \
+          -d "$COMPLETION_PAYLOAD")
+        
+        COMPLETION_HTTP_STATUS=$(echo "$COMPLETION_RESPONSE" | grep "HTTP_STATUS:" | cut -d: -f2)
+        COMPLETION_RESPONSE_BODY=$(echo "$COMPLETION_RESPONSE" | sed '/HTTP_STATUS:/d')
+        
+        if [ "$COMPLETION_HTTP_STATUS" = "200" ]; then
+            print_status "SUCCESS" "✅ Step 2: Video marked as COMPLETED (HTTP $COMPLETION_HTTP_STATUS)"
+            
+            # Verify the completion status and S3 key
+            if echo "$COMPLETION_RESPONSE_BODY" | jq -e '.newStatus.value == "COMPLETED"' > /dev/null 2>&1; then
+                print_status "SUCCESS" "✅ Status correctly updated to COMPLETED"
+                
+                # Check if S3 key was set
+                RETURNED_S3_KEY=$(echo "$COMPLETION_RESPONSE_BODY" | jq -r '.processedFileS3Key // empty')
+                if [ -n "$RETURNED_S3_KEY" ] && [ "$RETURNED_S3_KEY" != "null" ]; then
+                    print_status "SUCCESS" "✅ Processed file S3 key set: $RETURNED_S3_KEY"
+                else
+                    print_status "WARNING" "⚠️ Processed file S3 key not set in response"
+                    set_section_status 6 "WARNING"
+                fi
+                
+                # Step 3: Test download URL generation after completion
+                print_status "INFO" "Step 3: Testing download URL generation after completion..."
+                
+                DOWNLOAD_RESPONSE=$(curl -s -w "\nHTTP_STATUS:%{http_code}" \
+                  "${BASE_URL}/api/videos/${TEST_VIDEO_ID}/download?userId=${TEST_USER_ID}")
+                
+                DOWNLOAD_HTTP_STATUS=$(echo "$DOWNLOAD_RESPONSE" | grep "HTTP_STATUS:" | cut -d: -f2)
+                DOWNLOAD_RESPONSE_BODY=$(echo "$DOWNLOAD_RESPONSE" | sed '/HTTP_STATUS:/d')
+                
+                if [ "$DOWNLOAD_HTTP_STATUS" = "200" ]; then
+                    print_status "SUCCESS" "✅ Step 3: Download URL generated successfully (HTTP $DOWNLOAD_HTTP_STATUS)"
+                    
+                    # Extract and validate download URL
+                    DOWNLOAD_URL=$(echo "$DOWNLOAD_RESPONSE_BODY" | jq -r '.downloadUrl // empty')
+                    if [ -n "$DOWNLOAD_URL" ] && [ "$DOWNLOAD_URL" != "null" ]; then
+                        print_status "SUCCESS" "✅ Download URL generated: ${DOWNLOAD_URL:0:50}..."
+                        
+                        # Check expiration time
+                        EXPIRATION_MINUTES=$(echo "$DOWNLOAD_RESPONSE_BODY" | jq -r '.expirationMinutes // empty')
+                        if [ -n "$EXPIRATION_MINUTES" ] && [ "$EXPIRATION_MINUTES" != "null" ]; then
+                            print_status "SUCCESS" "✅ URL expires in: $EXPIRATION_MINUTES minutes"
+                        fi
+                        
+                        print_status "SUCCESS" "🎉 COMPLETE WORKFLOW SUCCESS: PENDING → PROCESSING → COMPLETED → DOWNLOAD"
+                    else
+                        print_status "WARNING" "⚠️ Download URL is null or empty"
+                        set_section_status 6 "WARNING"
+                    fi
+                else
+                    print_status "ERROR" "❌ Step 3: Download URL generation failed (HTTP $DOWNLOAD_HTTP_STATUS)"
+                    print_status "INFO" "Response: $DOWNLOAD_RESPONSE_BODY"
+                    set_section_status 6 "ERROR"
+                fi
+            else
+                print_status "WARNING" "⚠️ Status update response may not be correct"
+                set_section_status 6 "WARNING"
+            fi
+        else
+            print_status "ERROR" "❌ Step 2: Failed to mark video as COMPLETED (HTTP $COMPLETION_HTTP_STATUS)"
+            print_status "INFO" "Response: $COMPLETION_RESPONSE_BODY"
+            set_section_status 6 "ERROR"
+        fi
+        else
+            print_status "WARNING" "⚠️ Status update response may not be correct"
+            set_section_status 6 "WARNING"
+        fi
+    else
+        print_status "ERROR" "❌ Step 1: Failed to mark video as PROCESSING (HTTP $PROCESSING_HTTP_STATUS)"
+        print_status "INFO" "Response: $PROCESSING_RESPONSE_BODY"
+        set_section_status 6 "ERROR"
+    fi
+else
+    print_status "WARNING" "Skipping processing workflow test - no video ID available"
+    set_section_status 6 "WARNING"
+fi
+
+# ===================================================
+# SECTION 7: Error Handling Testing
+# ===================================================
+print_section "7" "Error Handling Testing"
 
 # Test upload with invalid user
 print_status "INFO" "Testing upload with invalid user..."
@@ -552,7 +708,7 @@ if [[ "$HTTP_CODE" == "400" ]]; then
     print_status "SUCCESS" "Properly rejected invalid user (HTTP 400)"
 else
     print_status "WARNING" "Expected HTTP 400 for invalid user, got $HTTP_CODE"
-    set_section_status 6 "WARNING"
+    set_section_status 7 "WARNING"
 fi
 
 # Test upload without file
@@ -570,7 +726,7 @@ if [[ "$HTTP_CODE" == "400" ]]; then
     print_status "SUCCESS" "Properly rejected upload without file (HTTP 400)"
 else
     print_status "WARNING" "Expected HTTP 400 for missing file, got $HTTP_CODE"
-    set_section_status 6 "WARNING"
+    set_section_status 7 "WARNING"
 fi
 
 # Test status retrieval with invalid video ID
@@ -587,7 +743,7 @@ if [[ "$HTTP_CODE" == "404" ]]; then
     print_status "SUCCESS" "Properly returned 404 for invalid video ID"
 else
     print_status "WARNING" "Expected HTTP 404 for invalid video ID, got $HTTP_CODE"
-    set_section_status 6 "WARNING"
+    set_section_status 7 "WARNING"
 fi
 
 # Test AWS service error handling scenarios
@@ -626,16 +782,16 @@ if [[ "$HTTP_CODE" == "400" ]]; then
     print_status "SUCCESS" "Properly rejected unsupported file type (HTTP 400)"
 else
     print_status "WARNING" "Expected HTTP 400 for unsupported file type, got $HTTP_CODE"
-    set_section_status 6 "WARNING"
+    set_section_status 7 "WARNING"
 fi
 
 # Cleanup test file
 rm -f "$UNSUPPORTED_FILE"
 
 # ===================================================
-# SECTION 7: AWS Integration Validation
+# SECTION 8: AWS Integration Validation
 # ===================================================
-print_section "7" "AWS Integration Validation"
+print_section "8" "AWS Integration Validation"
 
 print_status "INFO" "Validating real AWS service integrations..."
 
@@ -665,7 +821,7 @@ if [[ "$S3_REAL_OPERATIONS" -gt 0 ]]; then
         print_status "SUCCESS" "S3 bucket and key structure validation passed"
     else
         print_status "WARNING" "S3 bucket or key structure may not be correct"
-        set_section_status 7 "WARNING"
+        set_section_status 8 "WARNING"
     fi
     
     # Show recent S3 operation logs
@@ -674,10 +830,10 @@ if [[ "$S3_REAL_OPERATIONS" -gt 0 ]]; then
     
 elif [[ "$S3_MOCK_OPERATIONS" -gt 0 ]]; then
     print_status "WARNING" "⚠️ Still using Mock S3 adapter - real AWS integration not active"
-    set_section_status 7 "WARNING"
+    set_section_status 8 "WARNING"
 else
     print_status "ERROR" "❌ No S3 operations detected (neither real nor mock)"
-    set_section_status 7 "ERROR"
+    set_section_status 8 "ERROR"
 fi
 
 # ===================================================
@@ -700,10 +856,10 @@ if [[ "$SQS_REAL_OPERATIONS" -gt 0 ]]; then
     
 elif [[ "$SQS_MOCK_OPERATIONS" -gt 0 ]]; then
     print_status "WARNING" "⚠️ Still using Mock SQS adapter - real AWS integration not active"
-    set_section_status 7 "WARNING"
+    set_section_status 8 "WARNING"
 else
     print_status "ERROR" "❌ No SQS operations detected (neither real nor mock)"
-    set_section_status 7 "ERROR"
+    set_section_status 8 "ERROR"
 fi
 
 # ===================================================
@@ -726,10 +882,10 @@ if [[ "$SNS_REAL_OPERATIONS" -gt 0 ]]; then
     
 elif [[ "$SNS_MOCK_OPERATIONS" -gt 0 ]]; then
     print_status "WARNING" "⚠️ Still using Mock SNS adapter - real AWS integration not active"
-    set_section_status 7 "WARNING"
+    set_section_status 8 "WARNING"
 else
     print_status "ERROR" "❌ No SNS operations detected (neither real nor mock)"
-    set_section_status 7 "ERROR"
+    set_section_status 8 "ERROR"
 fi
 
 # ===================================================
@@ -744,7 +900,7 @@ if [[ "$AWS_CREDS_LOGS" -gt 0 ]]; then
     print_status "INFO" "AWS configuration references found in logs: $AWS_CREDS_LOGS"
 else
     print_status "WARNING" "Limited AWS configuration references in logs"
-    set_section_status 7 "WARNING"
+    set_section_status 8 "WARNING"
 fi
 
 # ===================================================
@@ -758,7 +914,7 @@ if [[ "$USER_SERVICE_OPERATIONS" -gt 0 ]]; then
     print_status "SUCCESS" "✅ User Service Mock adapter is active (expected)"
 else
     print_status "WARNING" "⚠️ User Service Mock adapter may not be active"
-    set_section_status 7 "WARNING"
+    set_section_status 8 "WARNING"
 fi
 
 # ===================================================
@@ -783,16 +939,16 @@ if [[ "$AWS_SERVICES_WORKING" -eq 3 ]]; then
     print_status "SUCCESS" "🎉 Complete AWS integration achieved (S3 + SQS + SNS)"
 elif [[ "$AWS_SERVICES_WORKING" -gt 0 ]]; then
     print_status "WARNING" "⚠️ Partial AWS integration ($AWS_SERVICES_WORKING/3 services working)"
-    set_section_status 7 "WARNING"
+    set_section_status 8 "WARNING"
 else
     print_status "ERROR" "❌ No real AWS integrations detected - still using mocks"
-    set_section_status 7 "ERROR"
+    set_section_status 8 "ERROR"
 fi
 
 # ===================================================
-# SECTION 8: Database Validation
+# SECTION 9: Database Validation
 # ===================================================
-print_section "8" "Database Validation"
+print_section "9" "Database Validation"
 
 print_status "INFO" "Validating data persistence in MongoDB..."
 
@@ -811,7 +967,7 @@ if [[ "$VIDEO_COUNT" -gt 0 ]]; then
     print_status "SUCCESS" "Video data successfully persisted in MongoDB"
 else
     print_status "WARNING" "No video data found in MongoDB"
-    set_section_status 8 "WARNING"
+    set_section_status 9 "WARNING"
 fi
 
 # Check MongoDB indexes
@@ -824,13 +980,13 @@ if [[ "$INDEX_COUNT" -gt 1 ]]; then  # More than just the default _id index
     print_status "SUCCESS" "Custom indexes are properly created"
 else
     print_status "WARNING" "Custom indexes may not be properly created"
-    set_section_status 8 "WARNING"
+    set_section_status 9 "WARNING"
 fi
 
 # ===================================================
-# SECTION 9: Configuration Validation
+# SECTION 10: Configuration Validation
 # ===================================================
-print_section "9" "Configuration Validation"
+print_section "10" "Configuration Validation"
 
 print_status "INFO" "Validating configuration loading..."
 
@@ -857,16 +1013,16 @@ if [[ "$HTTP_CODE" == "413" || "$HTTP_CODE" == "400" || "$HTTP_CODE" == "500" ]]
     print_status "INFO" "File size validation working (HTTP $HTTP_CODE)"
 else
     print_status "WARNING" "File size validation may not be working properly"
-    set_section_status 9 "WARNING"
+    set_section_status 10 "WARNING"
 fi
 
 # Cleanup large file
 rm -f "$LARGE_FILE"
 
 # ===================================================
-# SECTION 10: Application Logs Analysis
+# SECTION 11: Application Logs Analysis
 # ===================================================
-print_section "10" "Application Logs Analysis"
+print_section "11" "Application Logs Analysis"
 
 print_status "INFO" "Analyzing application logs for errors and warnings..."
 
@@ -880,7 +1036,7 @@ print_status "INFO" "ERROR level log entries: $ERROR_COUNT"
 if [[ "$ERROR_COUNT" -gt 0 ]]; then
     print_status "WARNING" "Found ERROR level entries in application logs:"
     docker compose logs processing-service | grep " ERROR " | tail -5
-    set_section_status 10 "WARNING"
+    set_section_status 11 "WARNING"
 fi
 
 print_status "INFO" "WARN level log entries: $WARNING_COUNT"
@@ -893,9 +1049,9 @@ fi
 print_status "INFO" "Success log entries: $SUCCESS_COUNT"
 
 # ===================================================
-# SECTION 11: Performance and Resource Usage
+# SECTION 12: Performance and Resource Usage
 # ===================================================
-print_section "11" "Performance and Resource Usage"
+print_section "12" "Performance and Resource Usage"
 
 print_status "INFO" "Checking container resource usage..."
 
@@ -907,9 +1063,9 @@ print_status "INFO" "Docker disk usage:"
 docker system df
 
 # ===================================================
-# SECTION 12: Cleanup
+# SECTION 13: Cleanup
 # ===================================================
-print_section "12" "Cleanup"
+print_section "13" "Cleanup"
 
 print_status "INFO" "Cleaning up test files..."
 # Only remove the temporary test file if we created one (not the existing test_videos file)

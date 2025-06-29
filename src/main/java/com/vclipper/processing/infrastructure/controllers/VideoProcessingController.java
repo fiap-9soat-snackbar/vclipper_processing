@@ -6,6 +6,7 @@ import com.vclipper.processing.application.usecases.GetProcessingStatusUseCase;
 import com.vclipper.processing.application.usecases.GetVideoDownloadUrlUseCase;
 import com.vclipper.processing.application.usecases.ListUserVideosUseCase;
 import com.vclipper.processing.application.usecases.SubmitVideoProcessingUseCase;
+import com.vclipper.processing.application.usecases.UpdateVideoStatusUseCase;
 import com.vclipper.processing.domain.exceptions.InvalidVideoFormatException;
 import com.vclipper.processing.domain.exceptions.VideoNotFoundException;
 import com.vclipper.processing.domain.exceptions.VideoProcessingException;
@@ -13,6 +14,8 @@ import com.vclipper.processing.domain.exceptions.VideoUploadException;
 import com.vclipper.processing.infrastructure.controllers.dto.ProcessingStatusResponse;
 import com.vclipper.processing.infrastructure.controllers.dto.VideoDownloadResponse;
 import com.vclipper.processing.infrastructure.controllers.dto.VideoListResponse;
+import com.vclipper.processing.infrastructure.controllers.dto.VideoStatusUpdateRequest;
+import com.vclipper.processing.infrastructure.controllers.dto.VideoStatusUpdateResponse;
 import com.vclipper.processing.infrastructure.controllers.dto.VideoUploadRequest;
 import com.vclipper.processing.infrastructure.controllers.dto.VideoUploadResponse;
 import jakarta.validation.Valid;
@@ -38,15 +41,18 @@ public class VideoProcessingController {
     private final GetProcessingStatusUseCase getProcessingStatusUseCase;
     private final GetVideoDownloadUrlUseCase getVideoDownloadUrlUseCase;
     private final ListUserVideosUseCase listUserVideosUseCase;
+    private final UpdateVideoStatusUseCase updateVideoStatusUseCase;
     
     public VideoProcessingController(SubmitVideoProcessingUseCase submitVideoProcessingUseCase,
                                    GetProcessingStatusUseCase getProcessingStatusUseCase,
                                    GetVideoDownloadUrlUseCase getVideoDownloadUrlUseCase,
-                                   ListUserVideosUseCase listUserVideosUseCase) {
+                                   ListUserVideosUseCase listUserVideosUseCase,
+                                   UpdateVideoStatusUseCase updateVideoStatusUseCase) {
         this.submitVideoProcessingUseCase = submitVideoProcessingUseCase;
         this.getProcessingStatusUseCase = getProcessingStatusUseCase;
         this.getVideoDownloadUrlUseCase = getVideoDownloadUrlUseCase;
         this.listUserVideosUseCase = listUserVideosUseCase;
+        this.updateVideoStatusUseCase = updateVideoStatusUseCase;
     }
     
     /**
@@ -202,5 +208,83 @@ public class VideoProcessingController {
             logger.error("Unexpected error generating download URL for videoId: {}, userId: {}", videoId, userId, e);
             throw e;
         }
+    }
+    
+    /**
+     * Update video processing status (called by vclipping service)
+     */
+    @PutMapping("/{videoId}/status")
+    public ResponseEntity<VideoStatusUpdateResponse> updateVideoStatus(
+            @PathVariable String videoId,
+            @Valid @RequestBody VideoStatusUpdateRequest request) {
+        logger.info("Updating video status: videoId={}, newStatus={}", videoId, request.status().value());
+        
+        try {
+            // Validate request
+            if (!request.isValid()) {
+                logger.warn("Invalid status update request for videoId: {}", videoId);
+                return ResponseEntity.badRequest()
+                    .body(VideoStatusUpdateResponse.failure(videoId, "unknown", null, 
+                        "Invalid request: " + getValidationMessage(request)));
+            }
+            
+            // Execute use case
+            UpdateVideoStatusUseCase.VideoStatusUpdateResponse response = updateVideoStatusUseCase.execute(
+                videoId,
+                request.status(),
+                request.processedFileS3Key(),
+                request.errorMessage()
+            );
+            
+            logger.info("Successfully updated video status: videoId={}, previousStatus={}, newStatus={}", 
+                videoId, response.previousStatus().value(), response.newStatus().value());
+            
+            return ResponseEntity.ok(VideoStatusUpdateResponse.success(
+                response.videoId(),
+                response.userId(),
+                response.previousStatus(),
+                response.newStatus(),
+                response.processedFileS3Key(),
+                response.updatedAt()
+            ));
+            
+        } catch (VideoNotFoundException e) {
+            // Let domain exceptions bubble up to GlobalExceptionHandler
+            logger.debug("VideoNotFoundException during status update for videoId: {} - re-throwing to GlobalExceptionHandler", videoId);
+            throw e;
+        } catch (IllegalStateException e) {
+            // Invalid status transition - business rule violation
+            logger.warn("Invalid status transition for videoId: {} - {}", videoId, e.getMessage());
+            return ResponseEntity.badRequest()
+                .body(VideoStatusUpdateResponse.failure(videoId, "unknown", null, e.getMessage()));
+        } catch (IllegalArgumentException e) {
+            // Invalid arguments - validation error
+            logger.warn("Invalid arguments for status update videoId: {} - {}", videoId, e.getMessage());
+            return ResponseEntity.badRequest()
+                .body(VideoStatusUpdateResponse.failure(videoId, "unknown", null, e.getMessage()));
+        } catch (Exception e) {
+            // Only catch unexpected system errors
+            logger.error("Unexpected system error during status update for videoId: {} - {}", videoId, e.getMessage(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(VideoStatusUpdateResponse.failure(videoId, "unknown", null, "Internal server error"));
+        }
+    }
+    
+    /**
+     * Helper method to generate validation error messages
+     */
+    private String getValidationMessage(VideoStatusUpdateRequest request) {
+        if (request.status() == null) {
+            return "Status is required";
+        }
+        if (request.status().equals(com.vclipper.processing.domain.entity.ProcessingStatus.COMPLETED) 
+            && (request.processedFileS3Key() == null || request.processedFileS3Key().trim().isEmpty())) {
+            return "Processed file S3 key is required for COMPLETED status";
+        }
+        if (request.status().equals(com.vclipper.processing.domain.entity.ProcessingStatus.FAILED) 
+            && (request.errorMessage() == null || request.errorMessage().trim().isEmpty())) {
+            return "Error message is required for FAILED status";
+        }
+        return "Invalid request";
     }
 }

@@ -64,4 +64,10 @@ public class UseCaseConfiguration {
             NotificationPort notification) {
         return new UpdateProcessingStatusUseCase(videoRepository, notification);
     }
+    
+    @Bean
+    public UpdateVideoStatusUseCase updateVideoStatusUseCase(
+            VideoRepositoryPort videoRepository) {
+        return new UpdateVideoStatusUseCase(videoRepository);
+    }
 }
