@@ -59,22 +59,24 @@ public class VideoProcessingController {
      * Upload video for processing
      */
     @PostMapping("/upload")
-    public ResponseEntity<VideoUploadResponse> uploadVideo(@Valid @ModelAttribute VideoUploadRequest request) {
+    public ResponseEntity<VideoUploadResponse> uploadVideo(
+            @Valid @ModelAttribute VideoUploadRequest request,
+            @RequestHeader("X-User-Id") String userId) {
         logger.info("Received video upload request for user: {}, filename: {}", 
-            request.userId(), request.getOriginalFilename());
+            userId, request.getOriginalFilename());
         
         try {
             // Validate file
             if (!request.isFileValid()) {
                 return ResponseEntity.badRequest()
-                    .body(VideoUploadResponse.failure(request.userId(), request.getOriginalFilename(), 
+                    .body(VideoUploadResponse.failure(userId, request.getOriginalFilename(), 
                         "Invalid file: file is empty or has no name"));
             }
             
             // Create use case submission
             SubmitVideoProcessingUseCase.VideoProcessingSubmission submission = 
                 new SubmitVideoProcessingUseCase.VideoProcessingSubmission(
-                    request.userId(),
+                    userId,
                     request.file().getInputStream(),
                     request.getOriginalFilename(),
                     request.getContentType(),
@@ -88,12 +90,12 @@ public class VideoProcessingController {
             if (result.isSuccess()) {
                 SubmitVideoProcessingUseCase.VideoProcessingResponse response = result.getValue().get();
                 logger.info("Video upload successful for user: {}, videoId: {}", 
-                    request.userId(), response.videoId());
+                    userId, response.videoId());
                 
                 return ResponseEntity.status(HttpStatus.CREATED)
                     .body(VideoUploadResponse.success(
                         response.videoId(),
-                        request.userId(),
+                        userId,
                         request.getOriginalFilename(),
                         response.status(),
                         response.message(),
@@ -102,39 +104,39 @@ public class VideoProcessingController {
             } else {
                 VideoUploadError error = result.getError().get();
                 logger.warn("Video upload validation failed for user: {}, error: {}", 
-                    request.userId(), error.message());
+                    userId, error.message());
                 
                 return ResponseEntity.badRequest()
-                    .body(VideoUploadResponse.failure(request.userId(), request.getOriginalFilename(), 
+                    .body(VideoUploadResponse.failure(userId, request.getOriginalFilename(), 
                         error.message()));
             }
             
         } catch (IOException e) {
-            logger.error("IO error reading uploaded file for user: {} - {}", request.userId(), e.getMessage());
+            logger.error("IO error reading uploaded file for user: {} - {}", userId, e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(VideoUploadResponse.failure(request.userId(), request.getOriginalFilename(), 
+                .body(VideoUploadResponse.failure(userId, request.getOriginalFilename(), 
                     "Error processing uploaded file"));
         } catch (VideoNotFoundException e) {
             // Let domain exceptions bubble up to GlobalExceptionHandler
-            logger.debug("VideoNotFoundException during video upload for user: {} - re-throwing to GlobalExceptionHandler", request.userId());
+            logger.debug("VideoNotFoundException during video upload for user: {} - re-throwing to GlobalExceptionHandler", userId);
             throw e;
         } catch (InvalidVideoFormatException e) {
             // Let domain exceptions bubble up to GlobalExceptionHandler
-            logger.debug("InvalidVideoFormatException during video upload for user: {} - re-throwing to GlobalExceptionHandler", request.userId());
+            logger.debug("InvalidVideoFormatException during video upload for user: {} - re-throwing to GlobalExceptionHandler", userId);
             throw e;
         } catch (VideoUploadException e) {
             // Let domain exceptions bubble up to GlobalExceptionHandler
-            logger.debug("VideoUploadException during video upload for user: {} - re-throwing to GlobalExceptionHandler", request.userId());
+            logger.debug("VideoUploadException during video upload for user: {} - re-throwing to GlobalExceptionHandler", userId);
             throw e;
         } catch (VideoProcessingException e) {
             // Let domain exceptions bubble up to GlobalExceptionHandler
-            logger.debug("VideoProcessingException during video upload for user: {} - re-throwing to GlobalExceptionHandler", request.userId());
+            logger.debug("VideoProcessingException during video upload for user: {} - re-throwing to GlobalExceptionHandler", userId);
             throw e;
         } catch (Exception e) {
             // Only catch unexpected system errors (non-domain exceptions)
-            logger.error("Unexpected system error during video upload for user: {} - {}", request.userId(), e.getMessage(), e);
+            logger.error("Unexpected system error during video upload for user: {} - {}", userId, e.getMessage(), e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(VideoUploadResponse.failure(request.userId(), request.getOriginalFilename(), 
+                .body(VideoUploadResponse.failure(userId, request.getOriginalFilename(), 
                     "Internal server error"));
         }
     }
@@ -145,7 +147,7 @@ public class VideoProcessingController {
     @GetMapping("/{videoId}/status")
     public ResponseEntity<ProcessingStatusResponse> getProcessingStatus(
             @PathVariable String videoId,
-            @RequestParam String userId) {
+            @RequestHeader("X-User-Id") String userId) {
         
         logger.info("Getting processing status for videoId: {}, userId: {}", videoId, userId);
         
@@ -160,7 +162,7 @@ public class VideoProcessingController {
      * List all videos for a user
      */
     @GetMapping
-    public ResponseEntity<VideoListResponse> listUserVideos(@RequestParam String userId) {
+    public ResponseEntity<VideoListResponse> listUserVideos(@RequestHeader("X-User-Id") String userId) {
         logger.info("Listing videos for userId: {}", userId);
         
         // Let any exceptions bubble up to GlobalExceptionHandler
@@ -175,7 +177,7 @@ public class VideoProcessingController {
     @GetMapping("/{videoId}/download")
     public ResponseEntity<VideoDownloadResponse> getVideoDownloadUrl(
             @PathVariable String videoId,
-            @RequestParam String userId) {
+            @RequestHeader("X-User-Id") String userId) {
         logger.info("Getting download URL for videoId: {}, userId: {}", videoId, userId);
         
         try {

@@ -41,13 +41,15 @@ public class MockUserServiceAdapter implements UserServicePort {
     public Optional<User> findById(String userId) {
         logger.debug("🔍 MOCK USER SERVICE: Finding user by ID: {}", userId);
         
-        User user = testUsers.get(userId);
-        
-        if (user != null) {
-            logger.debug("   ✅ Found user: {} ({})", user.userId(), user.email());
+        // In integration testing and production, we trust API Gateway JWT validation
+        // Create user on-demand for any valid Cognito user ID
+        if (userId != null && !userId.trim().isEmpty()) {
+            String email = generateRealisticEmail(userId);
+            User user = new User(userId, email);
+            logger.debug("   ✅ Created user on-demand: {} ({})", user.userId(), user.email());
             return Optional.of(user);
         } else {
-            logger.debug("   ❌ User not found: {}", userId);
+            logger.debug("   ❌ Invalid user ID provided: {}", userId);
             return Optional.empty();
         }
     }
@@ -56,13 +58,14 @@ public class MockUserServiceAdapter implements UserServicePort {
     public boolean isActiveUser(String userId) {
         logger.debug("🔍 MOCK USER SERVICE: Checking if user is active: {}", userId);
         
-        boolean isActive = testUsers.containsKey(userId);
+        // In production, API Gateway validates JWT tokens before forwarding requests
+        // So we trust any user ID that reaches the backend
+        boolean isActive = userId != null && !userId.trim().isEmpty();
         
         if (isActive) {
-            User user = testUsers.get(userId);
-            logger.debug("   ✅ User is active: {} ({})", user.userId(), user.email());
+            logger.debug("   ✅ User is trusted from API Gateway: {}", userId);
         } else {
-            logger.debug("   ❌ User is not active or doesn't exist: {}", userId);
+            logger.debug("   ❌ Invalid user ID: {}", userId);
         }
         
         return isActive;
@@ -72,14 +75,30 @@ public class MockUserServiceAdapter implements UserServicePort {
     public Optional<String> getUserEmail(String userId) {
         logger.debug("📧 MOCK USER SERVICE: Getting email for user: {}", userId);
         
-        User user = testUsers.get(userId);
-        
-        if (user != null) {
-            logger.debug("   ✅ Found email: {} for user: {}", user.email(), userId);
-            return Optional.of(user.email());
+        // Generate realistic email for any valid user ID
+        if (userId != null && !userId.trim().isEmpty()) {
+            String email = generateRealisticEmail(userId);
+            logger.debug("   ✅ Generated email: {} for user: {}", email, userId);
+            return Optional.of(email);
         } else {
-            logger.debug("   ❌ No email found for user: {}", userId);
+            logger.debug("   ❌ Invalid user ID: {}", userId);
             return Optional.empty();
+        }
+    }
+    
+    /**
+     * Generate a realistic email address for Cognito users
+     * In production, this would come from Cognito user attributes via API Gateway
+     */
+    private String generateRealisticEmail(String userId) {
+        // For Cognito UUIDs, create a more realistic email
+        if (userId.matches("[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")) {
+            // Use first 8 characters of UUID for a cleaner email
+            String shortId = userId.substring(0, 8);
+            return "user-" + shortId + "@vclipper.app";
+        } else {
+            // For other user IDs, use as-is
+            return userId + "@vclipper.app";
         }
     }
     
