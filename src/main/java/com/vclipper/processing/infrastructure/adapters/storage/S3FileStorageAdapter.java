@@ -176,6 +176,70 @@ public class S3FileStorageAdapter implements FileStoragePort {
         }
     }
     
+    @Override
+    public InputStream downloadFile(String storageReference) {
+        logger.info("⬇️  S3: Downloading file: {}", storageReference);
+        
+        try {
+            GetObjectRequest getObjectRequest = GetObjectRequest.builder()
+                .bucket(bucketName)
+                .key(storageReference)
+                .build();
+            
+            InputStream inputStream = s3Client.getObject(getObjectRequest);
+            logger.info("   ✅ Successfully downloaded: {}", storageReference);
+            return inputStream;
+            
+        } catch (Exception e) {
+            logger.error("   ❌ Error downloading file: {}", storageReference, e);
+            throw new RuntimeException("Failed to download file: " + storageReference, e);
+        }
+    }
+    
+    @Override
+    public String storeProcessedFile(InputStream inputStream, String videoId, String originalFilename) {
+        logger.info("📦 S3: Storing processed file for video: {}", videoId);
+        logger.info("   📁 Original filename: {}", originalFilename);
+        
+        try {
+            // Generate processed file key with standardized naming
+            String filenameWithoutExt = getFilenameWithoutExtension(originalFilename);
+            String processedKey = String.format("processed-videos/%s/%s_frames.zip", videoId, filenameWithoutExt);
+            
+            logger.info("   🗂️  Processed key: {}", processedKey);
+            
+            // Read the input stream into a byte array to get the content length
+            byte[] zipBytes = inputStream.readAllBytes();
+            logger.info("   📊 ZIP file size: {} bytes", zipBytes.length);
+            
+            // Create put object request
+            PutObjectRequest putObjectRequest = PutObjectRequest.builder()
+                .bucket(bucketName)
+                .key(processedKey)
+                .contentType("application/zip")
+                .contentLength((long) zipBytes.length)
+                .build();
+            
+            // Upload processed file with correct content length
+            s3Client.putObject(putObjectRequest, RequestBody.fromBytes(zipBytes));
+            
+            logger.info("   ✅ Successfully stored processed file: {}", processedKey);
+            return processedKey;
+            
+        } catch (Exception e) {
+            logger.error("   ❌ Error storing processed file for video: {}", videoId, e);
+            throw new RuntimeException("Failed to store processed file for video: " + videoId, e);
+        }
+    }
+    
+    /**
+     * Helper method to extract filename without extension
+     */
+    private String getFilenameWithoutExtension(String filename) {
+        int lastDotIndex = filename.lastIndexOf('.');
+        return lastDotIndex > 0 ? filename.substring(0, lastDotIndex) : filename;
+    }
+    
     /**
      * Generate a unique storage key with date-based prefix
      */

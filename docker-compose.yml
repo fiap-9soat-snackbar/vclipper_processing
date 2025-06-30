@@ -5,6 +5,9 @@ services:
       - "${SERVER_PORT}:${SERVER_PORT}"
       - "5005:5005"  # Debug port
     environment:
+      # Timezone Configuration - Use UTC-3 (Brasília time) for development
+      - TZ=America/Sao_Paulo
+      
       # Server Configuration
       - SERVER_PORT=${SERVER_PORT}
       
@@ -56,6 +59,8 @@ services:
     ports:
       - "${DB_PORT}:27017"
     environment:
+      # Timezone Configuration - Use UTC-3 (Brasília time) for development
+      - TZ=America/Sao_Paulo
       - MONGO_INITDB_ROOT_USERNAME=${MONGO_INITDB_ROOT_USERNAME}
       - MONGO_INITDB_ROOT_PASSWORD=${MONGO_INITDB_ROOT_PASSWORD}
       - MONGO_INITDB_DATABASE=${MONGO_INITDB_DATABASE}

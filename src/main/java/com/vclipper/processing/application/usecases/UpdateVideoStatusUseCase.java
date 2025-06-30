@@ -1,6 +1,7 @@
 package com.vclipper.processing.application.usecases;
 
 import com.vclipper.processing.application.ports.VideoRepositoryPort;
+import com.vclipper.processing.application.ports.VideoProcessingPort;
 import com.vclipper.processing.domain.entity.ProcessingStatus;
 import com.vclipper.processing.domain.entity.VideoProcessingRequest;
 import com.vclipper.processing.domain.exceptions.VideoNotFoundException;
@@ -8,19 +9,23 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.time.LocalDateTime;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * Use case for updating video processing status
  * Called by vclipping service when processing is completed or failed
+ * Enhanced with actual video processing capabilities via VideoProcessingPort
  */
 public class UpdateVideoStatusUseCase {
     
     private static final Logger logger = LoggerFactory.getLogger(UpdateVideoStatusUseCase.class);
     
     private final VideoRepositoryPort repositoryPort;
+    private final VideoProcessingPort videoProcessor;
     
-    public UpdateVideoStatusUseCase(VideoRepositoryPort repositoryPort) {
+    public UpdateVideoStatusUseCase(VideoRepositoryPort repositoryPort, VideoProcessingPort videoProcessor) {
         this.repositoryPort = repositoryPort;
+        this.videoProcessor = videoProcessor;
     }
     
     /**
@@ -63,6 +68,33 @@ public class UpdateVideoStatusUseCase {
         } else if (newStatus.equals(ProcessingStatus.PROCESSING)) {
             request.startProcessing();
             logger.info("Video marked as processing: videoId={}", videoId);
+            
+            // Trigger asynchronous video processing
+            CompletableFuture.runAsync(() -> {
+                try {
+                    logger.info("🎬 Starting asynchronous video processing for: {}", videoId);
+                    
+                    // Process video using the VideoProcessingPort
+                    String realProcessedS3Key = videoProcessor.processVideo(
+                        videoId, 
+                        request.getMetadata().storageReference(), 
+                        request.getMetadata().originalFilename()
+                    );
+                    
+                    logger.info("🎬 Video processing completed, auto-transitioning to COMPLETED: {}", videoId);
+                    
+                    // Auto-complete with real S3 key from processing
+                    this.execute(videoId, ProcessingStatus.COMPLETED, realProcessedS3Key, null);
+                    
+                } catch (Exception e) {
+                    logger.error("🎬 Video processing failed, auto-transitioning to FAILED: {}", videoId, e);
+                    
+                    // Auto-fail with error message
+                    this.execute(videoId, ProcessingStatus.FAILED, null, 
+                        "Processing failed: " + e.getMessage());
+                }
+            });
+            
         } else {
             request.updateStatus(newStatus);
             logger.info("Video status updated: videoId={}, status={}", videoId, newStatus.value());

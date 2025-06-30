@@ -67,7 +67,8 @@ public class UseCaseConfiguration {
     
     @Bean
     public UpdateVideoStatusUseCase updateVideoStatusUseCase(
-            VideoRepositoryPort videoRepository) {
-        return new UpdateVideoStatusUseCase(videoRepository);
+            VideoRepositoryPort videoRepository,
+            VideoProcessingPort videoProcessor) {
+        return new UpdateVideoStatusUseCase(videoRepository, videoProcessor);
     }
 }

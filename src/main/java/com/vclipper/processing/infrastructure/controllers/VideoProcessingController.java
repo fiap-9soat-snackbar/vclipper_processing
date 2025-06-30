@@ -218,8 +218,9 @@ public class VideoProcessingController {
     @PutMapping("/{videoId}/status")
     public ResponseEntity<VideoStatusUpdateResponse> updateVideoStatus(
             @PathVariable String videoId,
+            @RequestHeader("X-User-Id") String userId,
             @Valid @RequestBody VideoStatusUpdateRequest request) {
-        logger.info("Updating video status: videoId={}, newStatus={}", videoId, request.status().value());
+        logger.info("Updating video status: videoId={}, userId={}, newStatus={}", videoId, userId, request.status().value());
         
         try {
             // Validate request

@@ -53,6 +53,24 @@ public interface FileStoragePort {
     FileMetadata getMetadata(String storageReference);
     
     /**
+     * Download file content from storage
+     * 
+     * @param storageReference Storage reference to download
+     * @return InputStream of file content
+     */
+    InputStream downloadFile(String storageReference);
+    
+    /**
+     * Store processed file with standardized naming convention
+     * 
+     * @param inputStream Processed file content stream
+     * @param videoId Video identifier for organizing processed files
+     * @param originalFilename Original filename for reference
+     * @return Storage reference for the processed file
+     */
+    String storeProcessedFile(InputStream inputStream, String videoId, String originalFilename);
+    
+    /**
      * File metadata information
      */
     record FileMetadata(
