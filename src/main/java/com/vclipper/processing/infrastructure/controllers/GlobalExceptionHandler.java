@@ -11,11 +11,14 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
+import jakarta.validation.ConstraintViolation;
+import jakarta.validation.ConstraintViolationException;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
@@ -108,6 +111,19 @@ public class GlobalExceptionHandler {
     }
     
     /**
+     * Handle missing request header exceptions
+     */
+    @ExceptionHandler(MissingRequestHeaderException.class)
+    public ResponseEntity<ErrorResponse> handleMissingRequestHeaderException(MissingRequestHeaderException e) {
+        String headerName = e.getHeaderName();
+        logger.warn("Missing required request header - name: '{}'", headerName);
+        
+        String message = String.format("Missing required header '%s'", headerName);
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+            .body(new ErrorResponse("MISSING_HEADER", message, LocalDateTime.now()));
+    }
+    
+    /**
      * Handle validation errors
      */
     @ExceptionHandler(MethodArgumentNotValidException.class)
@@ -124,6 +140,25 @@ public class GlobalExceptionHandler {
             // Log each field error for better traceability (DEBUG level for details)
             logger.debug("Validation error - field: '{}', message: '{}'", fieldName, errorMessage);
         });
+        
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+            .body(new ValidationErrorResponse("VALIDATION_ERROR", "Request validation failed", errors, LocalDateTime.now()));
+    }
+    
+    /**
+     * Handle constraint violation errors (e.g., @NotBlank on method parameters)
+     */
+    @ExceptionHandler(ConstraintViolationException.class)
+    public ResponseEntity<ValidationErrorResponse> handleConstraintViolationException(ConstraintViolationException e) {
+        logger.warn("Constraint validation failed - {} violation(s)", e.getConstraintViolations().size());
+        
+        Map<String, String> errors = new HashMap<>();
+        for (ConstraintViolation<?> violation : e.getConstraintViolations()) {
+            String propertyPath = violation.getPropertyPath().toString();
+            String message = violation.getMessage();
+            errors.put(propertyPath, message);
+            logger.debug("Constraint violation - property: '{}', message: '{}'", propertyPath, message);
+        }
         
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
             .body(new ValidationErrorResponse("VALIDATION_ERROR", "Request validation failed", errors, LocalDateTime.now()));

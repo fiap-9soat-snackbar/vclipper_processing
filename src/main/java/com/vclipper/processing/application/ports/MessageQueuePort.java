@@ -1,5 +1,8 @@
 package com.vclipper.processing.application.ports;
 
+import java.util.Map;
+import java.util.UUID;
+
 /**
  * Port interface for message queue operations
  * Abstracts message queue implementation (SQS, RabbitMQ, etc.)
@@ -31,26 +34,49 @@ public interface MessageQueuePort {
     boolean isHealthy();
     
     /**
-     * Video processing message structure
+     * Enhanced video processing message structure with flexible parameters
      */
     record VideoProcessingMessage(
+        String messageId,                    // NEW: UUID for message tracking
         String videoId,
         String userId,
-        String storageReference,
+        String storageLocation,              // RENAMED: from storageReference
         String originalFilename,
         long fileSizeBytes,
-        String contentType
+        String contentType,
+        Map<String, Object> processingOptions // NEW: Flexible parameters
     ) {
         /**
-         * Create processing message from video processing request
+         * Factory method with default processing options
+         */
+        public static VideoProcessingMessage withDefaults(
+                String videoId, String userId, String storageLocation,
+                String originalFilename, long fileSizeBytes, String contentType) {
+            
+            Map<String, Object> defaultOptions = Map.of(
+                "framesPerSecond", 1.0,
+                "outputImageFormat", "PNG",
+                "outputCompressionFormat", "ZIP",
+                "jpegQuality", 85,
+                "maintainAspectRatio", true
+            );
+            
+            return new VideoProcessingMessage(
+                UUID.randomUUID().toString(),  // Generate unique message ID
+                videoId, userId, storageLocation,
+                originalFilename, fileSizeBytes, contentType,
+                defaultOptions
+            );
+        }
+        
+        /**
+         * Factory method for backward compatibility
          */
         public static VideoProcessingMessage from(String videoId, String userId, 
                                                 String storageReference, String originalFilename,
                                                 long fileSizeBytes, String contentType) {
-            return new VideoProcessingMessage(
-                videoId, userId, storageReference, 
-                originalFilename, fileSizeBytes, contentType
-            );
+            return withDefaults(videoId, userId, storageReference, 
+                              originalFilename, fileSizeBytes, contentType);
         }
     }
 }

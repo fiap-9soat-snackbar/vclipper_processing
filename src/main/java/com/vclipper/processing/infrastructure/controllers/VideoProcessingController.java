@@ -19,10 +19,12 @@ import com.vclipper.processing.infrastructure.controllers.dto.VideoStatusUpdateR
 import com.vclipper.processing.infrastructure.controllers.dto.VideoUploadRequest;
 import com.vclipper.processing.infrastructure.controllers.dto.VideoUploadResponse;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.io.IOException;
@@ -33,6 +35,7 @@ import java.io.IOException;
  */
 @RestController
 @RequestMapping("/api/videos")
+@Validated
 public class VideoProcessingController {
     
     private static final Logger logger = LoggerFactory.getLogger(VideoProcessingController.class);
@@ -61,7 +64,7 @@ public class VideoProcessingController {
     @PostMapping("/upload")
     public ResponseEntity<VideoUploadResponse> uploadVideo(
             @Valid @ModelAttribute VideoUploadRequest request,
-            @RequestHeader("X-User-Id") String userId) {
+            @RequestHeader("X-User-Id") @NotBlank(message = "User ID cannot be empty") String userId) {
         logger.info("Received video upload request for user: {}, filename: {}", 
             userId, request.getOriginalFilename());
         
@@ -147,7 +150,7 @@ public class VideoProcessingController {
     @GetMapping("/{videoId}/status")
     public ResponseEntity<ProcessingStatusResponse> getProcessingStatus(
             @PathVariable String videoId,
-            @RequestHeader("X-User-Id") String userId) {
+            @RequestHeader("X-User-Id") @NotBlank(message = "User ID cannot be empty") String userId) {
         
         logger.info("Getting processing status for videoId: {}, userId: {}", videoId, userId);
         
@@ -162,7 +165,7 @@ public class VideoProcessingController {
      * List all videos for a user
      */
     @GetMapping
-    public ResponseEntity<VideoListResponse> listUserVideos(@RequestHeader("X-User-Id") String userId) {
+    public ResponseEntity<VideoListResponse> listUserVideos(@RequestHeader("X-User-Id") @NotBlank(message = "User ID cannot be empty") String userId) {
         logger.info("Listing videos for userId: {}", userId);
         
         // Let any exceptions bubble up to GlobalExceptionHandler
@@ -177,7 +180,7 @@ public class VideoProcessingController {
     @GetMapping("/{videoId}/download")
     public ResponseEntity<VideoDownloadResponse> getVideoDownloadUrl(
             @PathVariable String videoId,
-            @RequestHeader("X-User-Id") String userId) {
+            @RequestHeader("X-User-Id") @NotBlank(message = "User ID cannot be empty") String userId) {
         logger.info("Getting download URL for videoId: {}, userId: {}", videoId, userId);
         
         try {
@@ -218,7 +221,7 @@ public class VideoProcessingController {
     @PutMapping("/{videoId}/status")
     public ResponseEntity<VideoStatusUpdateResponse> updateVideoStatus(
             @PathVariable String videoId,
-            @RequestHeader("X-User-Id") String userId,
+            @RequestHeader("X-User-Id") @NotBlank(message = "User ID cannot be empty") String userId,
             @Valid @RequestBody VideoStatusUpdateRequest request) {
         logger.info("Updating video status: videoId={}, userId={}, newStatus={}", videoId, userId, request.status().value());
         

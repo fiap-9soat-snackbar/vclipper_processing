@@ -325,7 +325,7 @@ print_status "INFO" "Testing video upload with valid user..."
 TEST_USER_ID="test-user-123"
 
 UPLOAD_RESPONSE=$(curl -s -X POST \
-    -F "userId=$TEST_USER_ID" \
+    -H "X-User-Id: $TEST_USER_ID" \
     -F "file=@$TEST_VIDEO_FILE;type=video/mp4" \
     -w "%{http_code}" \
     "http://localhost:8080/api/videos/upload")
@@ -367,8 +367,9 @@ if [[ -f ".test_video_id" ]]; then
     print_status "INFO" "Testing video status retrieval for video: $VIDEO_ID"
     
     STATUS_RESPONSE=$(curl -s -X GET \
+        -H "X-User-Id: $TEST_USER_ID" \
         -w "%{http_code}" \
-        "http://localhost:8080/api/videos/$VIDEO_ID/status?userId=$TEST_USER_ID")
+        "http://localhost:8080/api/videos/$VIDEO_ID/status")
     
     HTTP_CODE="${STATUS_RESPONSE: -3}"
     RESPONSE_BODY="${STATUS_RESPONSE%???}"
@@ -411,8 +412,9 @@ print_section "4" "Video Listing Testing"
 print_status "INFO" "Testing video listing for user: $TEST_USER_ID"
 
 LIST_RESPONSE=$(curl -s -X GET \
+    -H "X-User-Id: $TEST_USER_ID" \
     -w "%{http_code}" \
-    "http://localhost:8080/api/videos?userId=$TEST_USER_ID")
+    "http://localhost:8080/api/videos")
 
 HTTP_CODE="${LIST_RESPONSE: -3}"
 RESPONSE_BODY="${LIST_RESPONSE%???}"
@@ -453,8 +455,9 @@ if [[ -f ".test_video_id" ]]; then
     print_status "INFO" "Testing download URL for PENDING video (Result pattern validation)..."
     
     DOWNLOAD_RESPONSE=$(curl -s -X GET \
+        -H "X-User-Id: $TEST_USER_ID" \
         -w "%{http_code}" \
-        "http://localhost:8080/api/videos/$VIDEO_ID/download?userId=$TEST_USER_ID")
+        "http://localhost:8080/api/videos/$VIDEO_ID/download")
     
     HTTP_CODE="${DOWNLOAD_RESPONSE: -3}"
     RESPONSE_BODY="${DOWNLOAD_RESPONSE%???}"
@@ -498,8 +501,9 @@ if [[ -f ".test_video_id" ]]; then
     print_status "INFO" "Testing download URL with invalid video ID (security boundary)..."
     
     INVALID_DOWNLOAD_RESPONSE=$(curl -s -X GET \
+        -H "X-User-Id: $TEST_USER_ID" \
         -w "%{http_code}" \
-        "http://localhost:8080/api/videos/invalid-video-id/download?userId=$TEST_USER_ID")
+        "http://localhost:8080/api/videos/invalid-video-id/download")
     
     HTTP_CODE="${INVALID_DOWNLOAD_RESPONSE: -3}"
     print_status "INFO" "Invalid video download HTTP Code: $HTTP_CODE"
@@ -515,8 +519,9 @@ if [[ -f ".test_video_id" ]]; then
     print_status "INFO" "Testing download URL with unauthorized user (security boundary)..."
     
     UNAUTHORIZED_DOWNLOAD_RESPONSE=$(curl -s -X GET \
+        -H "X-User-Id: unauthorized-user" \
         -w "%{http_code}" \
-        "http://localhost:8080/api/videos/$VIDEO_ID/download?userId=unauthorized-user")
+        "http://localhost:8080/api/videos/$VIDEO_ID/download")
     
     HTTP_CODE="${UNAUTHORIZED_DOWNLOAD_RESPONSE: -3}"
     print_status "INFO" "Unauthorized download HTTP Code: $HTTP_CODE"
@@ -575,6 +580,7 @@ EOF
     PROCESSING_RESPONSE=$(curl -s -w "\nHTTP_STATUS:%{http_code}" \
       -X PUT "${BASE_URL}/api/videos/${TEST_VIDEO_ID}/status" \
       -H "Content-Type: application/json" \
+      -H "X-User-Id: ${TEST_USER_ID}" \
       -d "$PROCESSING_PAYLOAD")
     
     PROCESSING_HTTP_STATUS=$(echo "$PROCESSING_RESPONSE" | grep "HTTP_STATUS:" | cut -d: -f2)
@@ -610,6 +616,7 @@ EOF
         COMPLETION_RESPONSE=$(curl -s -w "\nHTTP_STATUS:%{http_code}" \
           -X PUT "${BASE_URL}/api/videos/${TEST_VIDEO_ID}/status" \
           -H "Content-Type: application/json" \
+          -H "X-User-Id: ${TEST_USER_ID}" \
           -d "$COMPLETION_PAYLOAD")
         
         COMPLETION_HTTP_STATUS=$(echo "$COMPLETION_RESPONSE" | grep "HTTP_STATUS:" | cut -d: -f2)
@@ -635,7 +642,8 @@ EOF
                 print_status "INFO" "Step 3: Testing download URL generation after completion..."
                 
                 DOWNLOAD_RESPONSE=$(curl -s -w "\nHTTP_STATUS:%{http_code}" \
-                  "${BASE_URL}/api/videos/${TEST_VIDEO_ID}/download?userId=${TEST_USER_ID}")
+                  -H "X-User-Id: ${TEST_USER_ID}" \
+                  "${BASE_URL}/api/videos/${TEST_VIDEO_ID}/download")
                 
                 DOWNLOAD_HTTP_STATUS=$(echo "$DOWNLOAD_RESPONSE" | grep "HTTP_STATUS:" | cut -d: -f2)
                 DOWNLOAD_RESPONSE_BODY=$(echo "$DOWNLOAD_RESPONSE" | sed '/HTTP_STATUS:/d')
@@ -692,22 +700,21 @@ fi
 # ===================================================
 print_section "7" "Error Handling Testing"
 
-# Test upload with invalid user
-print_status "INFO" "Testing upload with invalid user..."
+# Test upload with missing user header (should cause 400 due to missing required header)
+print_status "INFO" "Testing upload with missing user header..."
 
 INVALID_USER_RESPONSE=$(curl -s -X POST \
-    -F "userId=" \
     -F "file=@$TEST_VIDEO_FILE;type=video/mp4" \
     -w "%{http_code}" \
     "http://localhost:8080/api/videos/upload")
 
 HTTP_CODE="${INVALID_USER_RESPONSE: -3}"
-print_status "INFO" "Invalid user upload HTTP Code: $HTTP_CODE"
+print_status "INFO" "Missing user header upload HTTP Code: $HTTP_CODE"
 
 if [[ "$HTTP_CODE" == "400" ]]; then
-    print_status "SUCCESS" "Properly rejected invalid user (HTTP 400)"
+    print_status "SUCCESS" "Properly rejected missing user header (HTTP 400)"
 else
-    print_status "WARNING" "Expected HTTP 400 for invalid user, got $HTTP_CODE"
+    print_status "WARNING" "Expected HTTP 400 for missing user header, got $HTTP_CODE"
     set_section_status 7 "WARNING"
 fi
 
@@ -715,7 +722,7 @@ fi
 print_status "INFO" "Testing upload without file..."
 
 NO_FILE_RESPONSE=$(curl -s -X POST \
-    -F "userId=$TEST_USER_ID" \
+    -H "X-User-Id: $TEST_USER_ID" \
     -w "%{http_code}" \
     "http://localhost:8080/api/videos/upload")
 
@@ -733,8 +740,9 @@ fi
 print_status "INFO" "Testing status retrieval with invalid video ID..."
 
 INVALID_STATUS_RESPONSE=$(curl -s -X GET \
+    -H "X-User-Id: $TEST_USER_ID" \
     -w "%{http_code}" \
-    "http://localhost:8080/api/videos/invalid-id/status?userId=$TEST_USER_ID")
+    "http://localhost:8080/api/videos/invalid-id/status")
 
 HTTP_CODE="${INVALID_STATUS_RESPONSE: -3}"
 print_status "INFO" "Invalid video ID status HTTP Code: $HTTP_CODE"
@@ -770,7 +778,7 @@ UNSUPPORTED_FILE="test-unsupported.txt"
 echo "This is not a video file" > "$UNSUPPORTED_FILE"
 
 UNSUPPORTED_RESPONSE=$(curl -s -X POST \
-    -F "userId=$TEST_USER_ID" \
+    -H "X-User-Id: $TEST_USER_ID" \
     -F "file=@$UNSUPPORTED_FILE;type=text/plain" \
     -w "%{http_code}" \
     "http://localhost:8080/api/videos/upload")
@@ -1001,7 +1009,7 @@ LARGE_FILE="large-test-file.mp4"
 dd if=/dev/zero of="$LARGE_FILE" bs=1M count=600 2>/dev/null
 
 LARGE_UPLOAD_RESPONSE=$(curl -s -X POST \
-    -F "userId=$TEST_USER_ID" \
+    -H "X-User-Id: $TEST_USER_ID" \
     -F "file=@$LARGE_FILE" \
     -w "%{http_code}" \
     "http://localhost:8080/api/videos/upload")

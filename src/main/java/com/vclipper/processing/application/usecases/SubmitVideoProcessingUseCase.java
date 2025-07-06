@@ -6,6 +6,8 @@ import com.vclipper.processing.application.ports.*;
 import com.vclipper.processing.domain.entity.*;
 import com.vclipper.processing.domain.enums.VideoFormat;
 import com.vclipper.processing.domain.exceptions.VideoUploadException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.InputStream;
 
@@ -14,6 +16,8 @@ import java.io.InputStream;
  * Orchestrates video upload, validation, storage, and processing queue submission
  */
 public class SubmitVideoProcessingUseCase {
+    
+    private static final Logger logger = LoggerFactory.getLogger(SubmitVideoProcessingUseCase.class);
     
     private final VideoRepositoryPort videoRepository;
     private final FileStoragePort fileStorage;
@@ -157,14 +161,20 @@ public class SubmitVideoProcessingUseCase {
     }
     
     private void sendProcessingMessage(VideoProcessingRequest request) {
-        MessageQueuePort.VideoProcessingMessage message = MessageQueuePort.VideoProcessingMessage.from(
-            request.getVideoId(),
-            request.getUserId(),
-            request.getMetadata().storageReference(),
-            request.getMetadata().originalFilename(),
-            request.getMetadata().fileSizeBytes(),
-            request.getMetadata().contentType()
-        );
+        MessageQueuePort.VideoProcessingMessage message = 
+            MessageQueuePort.VideoProcessingMessage.withDefaults(
+                request.getVideoId(),
+                request.getUserId(),
+                request.getMetadata().storageReference(), // Will be storageLocation in message
+                request.getMetadata().originalFilename(),
+                request.getMetadata().fileSizeBytes(),
+                request.getMetadata().contentType()
+            );
+        
+        logger.info("📨 Sending enhanced processing message for video: {}", request.getVideoId());
+        logger.debug("   📋 Message ID: {}", message.messageId());
+        logger.debug("   📁 Storage Location: {}", message.storageLocation());
+        logger.debug("   ⚙️  Processing Options: {}", message.processingOptions());
         
         messageQueue.sendProcessingMessage(message);
     }
