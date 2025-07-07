@@ -17,6 +17,21 @@ spring:
       write-dates-as-timestamps: false
     deserialization:
       fail-on-unknown-properties: false
+  # Spring Cloud AWS Configuration
+  cloud:
+    aws:
+      region:
+        static: ${AWS_REGION}
+      # Use default credentials provider (reads from ~/.aws/credentials) for development
+      # In production, uncomment the explicit credentials below:
+      credentials:
+        instance-profile: false
+        profile-name: default
+        # Production configuration (commented out for development):
+        # access-key: ${AWS_ACCESS_KEY_ID}
+        # secret-key: ${AWS_SECRET_ACCESS_KEY}
+      sqs:
+        enabled: true
 
 # AWS Configuration
 aws:
@@ -25,6 +40,7 @@ aws:
     bucket-name: ${AWS_S3_BUCKET}
   sqs:
     processing-queue-url: ${AWS_SQS_PROCESSING_QUEUE_URL}
+    result-queue-url: ${AWS_SQS_RESULT_QUEUE_URL}
   sns:
     notification-topic-arn: ${AWS_SNS_NOTIFICATION_TOPIC_ARN}
 

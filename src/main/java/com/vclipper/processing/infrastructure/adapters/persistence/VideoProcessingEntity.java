@@ -41,6 +41,12 @@ public class VideoProcessingEntity {
     private String errorMessage;
     private String processedFileReference;
     
+    // Vclipping result fields
+    private String outputLocation;
+    private Integer extractedFrameCount;
+    private Long processingDurationMs;
+    private boolean downloadReady;
+    
     // Basic retry tracking
     private int retryCount;
     

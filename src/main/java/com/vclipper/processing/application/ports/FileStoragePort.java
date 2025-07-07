@@ -71,6 +71,15 @@ public interface FileStoragePort {
     String storeProcessedFile(InputStream inputStream, String videoId, String originalFilename);
     
     /**
+     * Copy file from one S3 location to another within the same bucket
+     * 
+     * @param sourceKey Source S3 key
+     * @param targetKey Target S3 key  
+     * @throws RuntimeException if copy operation fails
+     */
+    void copyFile(String sourceKey, String targetKey);
+    
+    /**
      * File metadata information
      */
     record FileMetadata(

@@ -17,6 +17,7 @@
     
     <properties>
         <java.version>21</java.version>
+        <spring.cloud.aws.version>3.1.1</spring.cloud.aws.version>
         <aws.sdk.version>2.31.25</aws.sdk.version>
         <lombok.version>1.18.34</lombok.version>
         <springdoc.version>2.8.8</springdoc.version>
@@ -24,6 +25,37 @@
         <commons.fileupload.version>1.5</commons.fileupload.version>
         <commons.io.version>2.15.1</commons.io.version>
     </properties>
+    
+    <dependencyManagement>
+        <dependencies>
+            <!-- Spring Cloud BOM - Manages Spring Cloud ecosystem -->
+            <dependency>
+                <groupId>org.springframework.cloud</groupId>
+                <artifactId>spring-cloud-dependencies</artifactId>
+                <version>2023.0.4</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            
+            <!-- Spring Cloud AWS BOM - Manages AWS Spring integration -->
+            <dependency>
+                <groupId>io.awspring.cloud</groupId>
+                <artifactId>spring-cloud-aws-dependencies</artifactId>
+                <version>${spring.cloud.aws.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            
+            <!-- AWS SDK BOM - Ensures AWS SDK compatibility -->
+            <dependency>
+                <groupId>software.amazon.awssdk</groupId>
+                <artifactId>bom</artifactId>
+                <version>${aws.sdk.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
     
     <dependencies>
         <!-- Spring Boot Core Dependencies -->
@@ -57,26 +89,40 @@
             <scope>provided</scope>
         </dependency>
 
-        <!-- AWS SDK Dependencies -->
+        <!-- AWS SDK Dependencies - Managed by AWS SDK BOM -->
         <dependency>
             <groupId>software.amazon.awssdk</groupId>
             <artifactId>s3</artifactId>
-            <version>${aws.sdk.version}</version>
+            <!-- No version - managed by BOM -->
         </dependency>
         <dependency>
             <groupId>software.amazon.awssdk</groupId>
             <artifactId>sqs</artifactId>
-            <version>${aws.sdk.version}</version>
+            <!-- No version - managed by BOM -->
         </dependency>
         <dependency>
             <groupId>software.amazon.awssdk</groupId>
             <artifactId>sns</artifactId>
-            <version>${aws.sdk.version}</version>
+            <!-- No version - managed by BOM -->
         </dependency>
         <dependency>
             <groupId>software.amazon.awssdk</groupId>
             <artifactId>apache-client</artifactId>
-            <version>${aws.sdk.version}</version>
+            <!-- No version - managed by BOM -->
+        </dependency>
+
+        <!-- Spring Cloud AWS - Managed by Spring Cloud AWS BOM -->
+        <dependency>
+            <groupId>io.awspring.cloud</groupId>
+            <artifactId>spring-cloud-aws-starter-sqs</artifactId>
+            <!-- No version - managed by BOM -->
+        </dependency>
+
+        <!-- Jackson Dependencies - Managed by Spring Boot parent -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.datatype</groupId>
+            <artifactId>jackson-datatype-jsr310</artifactId>
+            <!-- No version - managed by Spring Boot -->
         </dependency>
 
         <!-- File Upload Dependencies -->

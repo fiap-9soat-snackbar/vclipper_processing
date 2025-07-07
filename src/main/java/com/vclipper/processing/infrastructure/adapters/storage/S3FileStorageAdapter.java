@@ -248,4 +248,32 @@ public class S3FileStorageAdapter implements FileStoragePort {
         String uniqueId = UUID.randomUUID().toString().substring(0, 8);
         return String.format("videos/%s/%s-%s", datePrefix, uniqueId, originalFilename);
     }
+    
+    @Override
+    public void copyFile(String sourceKey, String targetKey) {
+        logger.info("📁 Copying S3 file: {} → {}", sourceKey, targetKey);
+        
+        try {
+            CopyObjectRequest copyRequest = CopyObjectRequest.builder()
+                .sourceBucket(bucketName)
+                .sourceKey(sourceKey)
+                .destinationBucket(bucketName)
+                .destinationKey(targetKey)
+                .build();
+            
+            CopyObjectResponse response = s3Client.copyObject(copyRequest);
+            
+            logger.info("✅ Successfully copied S3 file: {} → {}, ETag: {}", 
+                       sourceKey, targetKey, response.copyObjectResult().eTag());
+            
+        } catch (S3Exception e) {
+            logger.error("❌ Failed to copy S3 file: {} → {}, error: {}", 
+                        sourceKey, targetKey, e.getMessage(), e);
+            throw new RuntimeException("Failed to copy file in S3: " + e.getMessage(), e);
+        } catch (Exception e) {
+            logger.error("❌ Unexpected error copying S3 file: {} → {}", 
+                        sourceKey, targetKey, e.getMessage(), e);
+            throw new RuntimeException("Unexpected error copying file in S3: " + e.getMessage(), e);
+        }
+    }
 }

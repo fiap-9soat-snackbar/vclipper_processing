@@ -22,6 +22,7 @@ public class UseCaseConfiguration {
             NotificationPort notification,
             UserServicePort userService,
             MimeTypeDetectionPort mimeTypeDetection,
+            UpdateVideoStatusUseCase updateVideoStatusUseCase,
             ProcessingProperties properties) {
         return new SubmitVideoProcessingUseCase(
             videoRepository,
@@ -30,6 +31,7 @@ public class UseCaseConfiguration {
             notification,
             userService,
             mimeTypeDetection,
+            updateVideoStatusUseCase,
             properties.video().maxSizeBytes()
         );
     }
@@ -59,16 +61,9 @@ public class UseCaseConfiguration {
     }
     
     @Bean
-    public UpdateProcessingStatusUseCase updateProcessingStatusUseCase(
-            VideoRepositoryPort videoRepository,
-            NotificationPort notification) {
-        return new UpdateProcessingStatusUseCase(videoRepository, notification);
-    }
-    
-    @Bean
     public UpdateVideoStatusUseCase updateVideoStatusUseCase(
             VideoRepositoryPort videoRepository,
-            VideoProcessingPort videoProcessor) {
-        return new UpdateVideoStatusUseCase(videoRepository, videoProcessor);
+            NotificationPort notification) {
+        return new UpdateVideoStatusUseCase(videoRepository, notification);
     }
 }

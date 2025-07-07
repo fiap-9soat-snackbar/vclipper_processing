@@ -4,68 +4,91 @@ import java.util.Optional;
 import java.util.function.Function;
 
 /**
- * Result pattern for handling success/failure without exceptions
- * Provides a clean way to handle business logic outcomes
+ * Result pattern implementation for type-safe error handling.
  * 
- * Use this for expected business conditions that are not exceptional:
- * - High-frequency business state checks (e.g., "video not ready")
- * - User-facing validation results
- * - Operations where "failure" is normal flow
+ * Follows the exact same pattern as vclipping's Result class for consistency.
+ * Provides a functional approach to handling success/failure scenarios
+ * without throwing exceptions in business logic.
  * 
- * Continue using exceptions for:
- * - Security boundaries (VideoNotFoundException)
- * - System errors (IOException, database failures)
- * - Rare error conditions
+ * @param <T> Success value type
+ * @param <E> Error type
  */
 public sealed interface Result<T, E> permits Result.Success, Result.Failure {
     
     /**
-     * Create a successful result
+     * Check if this result represents a successful operation.
+     * 
+     * @return true if operation was successful
+     */
+    boolean isSuccess();
+    
+    /**
+     * Check if this result represents a failed operation.
+     * 
+     * @return true if operation failed
+     */
+    boolean isFailure();
+    
+    /**
+     * Get the success value if present.
+     * 
+     * @return Optional containing the success value
+     */
+    Optional<T> getValue();
+    
+    /**
+     * Get the error if present.
+     * 
+     * @return Optional containing the error
+     */
+    Optional<E> getError();
+    
+    /**
+     * Transform the success value if present.
+     * 
+     * @param mapper Function to transform the success value
+     * @param <U> New success value type
+     * @return New Result with transformed value or original error
+     */
+    <U> Result<U, E> map(Function<T, U> mapper);
+    
+    /**
+     * Transform the success value to another Result.
+     * 
+     * @param mapper Function to transform the success value to Result
+     * @param <U> New success value type
+     * @return New Result from transformation or original error
+     */
+    <U> Result<U, E> flatMap(Function<T, Result<U, E>> mapper);
+    
+    // Factory methods
+    
+    /**
+     * Create a successful result.
+     * 
+     * @param value Success value
+     * @param <T> Success value type
+     * @param <E> Error type
+     * @return Success result
      */
     static <T, E> Result<T, E> success(T value) {
         return new Success<>(value);
     }
     
     /**
-     * Create a failed result
+     * Create a failed result.
+     * 
+     * @param error Error value
+     * @param <T> Success value type
+     * @param <E> Error type
+     * @return Failure result
      */
     static <T, E> Result<T, E> failure(E error) {
         return new Failure<>(error);
     }
     
-    /**
-     * Check if result is successful
-     */
-    boolean isSuccess();
+    // Implementation classes
     
-    /**
-     * Check if result is failure
-     */
-    boolean isFailure();
-    
-    /**
-     * Get success value (empty if failure)
-     */
-    Optional<T> getValue();
-    
-    /**
-     * Get error value (empty if success)
-     */
-    Optional<E> getError();
-    
-    /**
-     * Map success value to another type
-     */
-    <U> Result<U, E> map(Function<T, U> mapper);
-    
-    /**
-     * Map error value to another type
-     */
-    <F> Result<T, F> mapError(Function<E, F> mapper);
-    
-    /**
-     * Success result
-     */
     record Success<T, E>(T value) implements Result<T, E> {
         @Override
         public boolean isSuccess() {
@@ -93,14 +116,11 @@ public sealed interface Result<T, E> permits Result.Success, Result.Failure {
         }
         
         @Override
-        public <F> Result<T, F> mapError(Function<E, F> mapper) {
-            return new Success<>(value);
+        public <U> Result<U, E> flatMap(Function<T, Result<U, E>> mapper) {
+            return mapper.apply(value);
         }
     }
     
-    /**
-     * Failure result
-     */
     record Failure<T, E>(E error) implements Result<T, E> {
         @Override
         public boolean isSuccess() {
@@ -128,8 +148,8 @@ public sealed interface Result<T, E> permits Result.Success, Result.Failure {
         }
         
         @Override
-        public <F> Result<T, F> mapError(Function<E, F> mapper) {
-            return new Failure<>(mapper.apply(error));
+        public <U> Result<U, E> flatMap(Function<T, Result<U, E>> mapper) {
+            return new Failure<>(error);
         }
     }
 }

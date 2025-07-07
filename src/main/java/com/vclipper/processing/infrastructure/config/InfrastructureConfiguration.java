@@ -2,6 +2,7 @@ package com.vclipper.processing.infrastructure.config;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.vclipper.processing.application.ports.*;
+import com.vclipper.processing.application.usecases.ProcessVclippingResultUseCase;
 import com.vclipper.processing.infrastructure.adapters.messaging.SQSMessageAdapter;
 import com.vclipper.processing.infrastructure.adapters.notification.SNSNotificationAdapter;
 import com.vclipper.processing.infrastructure.adapters.storage.S3FileStorageAdapter;
@@ -125,5 +126,18 @@ public class InfrastructureConfiguration {
     public UserServicePort userServicePort() {
         logger.info("⚠️ Configuring UserServicePort with Mock adapter (will be replaced with real integration)");
         return new MockUserServiceAdapter();
+    }
+    
+    // ========== SQS Result Processing Configuration ==========
+    
+    /**
+     * Configure ProcessVclippingResultUseCase for handling vclipping service results
+     */
+    @Bean
+    public ProcessVclippingResultUseCase processVclippingResultUseCase(
+            ProcessResultPort processResultPort, 
+            ObjectMapper objectMapper) {
+        logger.info("🔧 Configuring ProcessVclippingResultUseCase for SQS result processing");
+        return new ProcessVclippingResultUseCase(processResultPort, objectMapper);
     }
 }

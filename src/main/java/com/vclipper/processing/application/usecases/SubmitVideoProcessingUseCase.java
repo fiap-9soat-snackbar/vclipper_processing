@@ -25,6 +25,7 @@ public class SubmitVideoProcessingUseCase {
     private final NotificationPort notification;
     private final UserServicePort userService;
     private final MimeTypeDetectionPort mimeTypeDetection;
+    private final UpdateVideoStatusUseCase updateVideoStatusUseCase;
     private final long maxFileSizeBytes;
     
     public SubmitVideoProcessingUseCase(VideoRepositoryPort videoRepository,
@@ -33,6 +34,7 @@ public class SubmitVideoProcessingUseCase {
                                       NotificationPort notification,
                                       UserServicePort userService,
                                       MimeTypeDetectionPort mimeTypeDetection,
+                                      UpdateVideoStatusUseCase updateVideoStatusUseCase,
                                       long maxFileSizeBytes) {
         this.videoRepository = videoRepository;
         this.fileStorage = fileStorage;
@@ -40,6 +42,7 @@ public class SubmitVideoProcessingUseCase {
         this.notification = notification;
         this.userService = userService;
         this.mimeTypeDetection = mimeTypeDetection;
+        this.updateVideoStatusUseCase = updateVideoStatusUseCase;
         this.maxFileSizeBytes = maxFileSizeBytes;
     }
     
@@ -176,7 +179,26 @@ public class SubmitVideoProcessingUseCase {
         logger.debug("   📁 Storage Location: {}", message.storageLocation());
         logger.debug("   ⚙️  Processing Options: {}", message.processingOptions());
         
+        // Send SQS message
         messageQueue.sendProcessingMessage(message);
+        
+        // Update status to PROCESSING after successfully sending SQS message
+        // Using enhanced use case with Result pattern for clean architecture
+        var statusUpdateResult = updateVideoStatusUseCase.execute(
+            request.getVideoId(), 
+            request.getUserId(), 
+            ProcessingStatus.PROCESSING
+        );
+        
+        if (statusUpdateResult.isSuccess()) {
+            logger.info("✅ Updated video status to PROCESSING after sending SQS message: {}", request.getVideoId());
+        } else {
+            var error = statusUpdateResult.getError().orElse(null);
+            logger.error("❌ Failed to update video status to PROCESSING for video: {} - Error: {}", 
+                        request.getVideoId(), error != null ? error.message() : "Unknown error");
+            // Don't throw exception here as the SQS message was already sent successfully
+            // The video will remain in PENDING state, but vclipping will still process it
+        }
     }
     
     private void sendUploadNotification(VideoProcessingRequest request) {
