@@ -6,7 +6,8 @@ spring:
     name: vclipper-processing-orchestration
   data:
     mongodb:
-      uri: mongodb://${MONGODB_USER}:${MONGODB_PASSWORD}@${DB_HOST}:${DB_PORT}/${MONGODB_DATABASE}
+      uri: mongodb+srv://${MONGODB_USER}:${MONGODB_PASSWORD}@${DB_HOST}/${MONGODB_DATABASE}
+      #uri: mongodb://${MONGODB_USER}:${MONGODB_PASSWORD}@${DB_HOST}/${MONGODB_DATABASE}
       database: ${MONGODB_DATABASE}
   servlet:
     multipart:
@@ -64,18 +65,19 @@ management:
   endpoint:
     health:
       show-details: always
+    prometheus:
+      access: UNRESTRICTED
 
 info:
   app:
     name: VClipper Processing Orchestration Service
     description: Handles video upload, processing workflow orchestration, and status tracking
   features:
-    - Video Upload & Validation
-    - Processing Status Tracking
-    - AWS S3 Integration (Mock)
-    - SQS Message Publishing (Mock)
-    - SNS Notifications (Mock)
-
+   # - Video Upload & Validation
+   # - Processing Status Tracking
+   # - AWS S3 Integration (Mock)
+   # - SQS Message Publishing (Mock)
+   # - SNS Notifications (Mock)
 logging:
   level:
     com.vclipper.processing: ${LOG_LEVEL_VCLIPPER}
