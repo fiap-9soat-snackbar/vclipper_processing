@@ -148,6 +148,12 @@
             <version>${springdoc.version}</version>
         </dependency>
 
+        <!-- Jackson for LocalDateTime support (already included in starter-web) -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.datatype</groupId>
+            <artifactId>jackson-datatype-jsr310</artifactId>
+        </dependency>
+
         <!-- Testing Dependencies -->
         <dependency>
             <groupId>org.mockito</groupId>
