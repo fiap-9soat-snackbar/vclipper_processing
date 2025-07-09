@@ -8,13 +8,13 @@
         <version>3.4.1</version>
         <relativePath/>
     </parent>
-    
+
     <groupId>com.vclipper</groupId>
     <artifactId>processing-orchestration</artifactId>
     <version>0.0.1-SNAPSHOT</version>
     <name>VClipper Processing Orchestration Service</name>
     <description>Video processing orchestration and workflow management service</description>
-    
+
     <properties>
         <java.version>21</java.version>
         <spring.cloud.aws.version>3.1.1</spring.cloud.aws.version>
@@ -25,7 +25,7 @@
         <commons.fileupload.version>1.5</commons.fileupload.version>
         <commons.io.version>2.15.1</commons.io.version>
     </properties>
-    
+
     <dependencyManagement>
         <dependencies>
             <!-- Spring Cloud BOM - Manages Spring Cloud ecosystem -->
@@ -36,7 +36,7 @@
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
-            
+
             <!-- Spring Cloud AWS BOM - Manages AWS Spring integration -->
             <dependency>
                 <groupId>io.awspring.cloud</groupId>
@@ -45,7 +45,7 @@
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
-            
+
             <!-- AWS SDK BOM - Ensures AWS SDK compatibility -->
             <dependency>
                 <groupId>software.amazon.awssdk</groupId>
@@ -56,7 +56,7 @@
             </dependency>
         </dependencies>
     </dependencyManagement>
-    
+
     <dependencies>
         <!-- Spring Boot Core Dependencies -->
         <dependency>
@@ -148,12 +148,6 @@
             <version>${springdoc.version}</version>
         </dependency>
 
-        <!-- Jackson for LocalDateTime support (already included in starter-web) -->
-        <dependency>
-            <groupId>com.fasterxml.jackson.datatype</groupId>
-            <artifactId>jackson-datatype-jsr310</artifactId>
-        </dependency>
-
         <!-- Testing Dependencies -->
         <dependency>
             <groupId>org.mockito</groupId>
@@ -230,3 +224,4 @@
         </plugins>
     </build>
 </project>
+
