@@ -4,7 +4,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
+import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
+import org.springframework.web.servlet.config.annotation.ViewControllerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 /**
@@ -42,6 +45,31 @@ public class WebConfiguration implements WebMvcConfigurer {
                 .maxAge(3600);
 
         logger.info("✅ CORS configuration completed");
+    }
+
+    @Override
+    public void addResourceHandlers(ResourceHandlerRegistry registry) {
+        logger.info("🔧 Configuring static resource handlers");
+        
+        // Handle favicon.ico requests gracefully - return empty response instead of 404
+        registry.addResourceHandler("/favicon.ico")
+                .addResourceLocations("classpath:/static/")
+                .setCachePeriod(3600);
+                
+        logger.info("✅ Static resource handlers configured");
+    }
+
+    @Override
+    public void addViewControllers(ViewControllerRegistry registry) {
+        logger.info("🔧 Configuring view controllers");
+        
+        // Redirect root path to health endpoint for better UX
+        registry.addViewController("/").setViewName("forward:/actuator/health");
+        
+        // Return 204 No Content for favicon to avoid errors in logs
+        registry.addStatusController("/favicon.ico", HttpStatus.NO_CONTENT);
+        
+        logger.info("✅ View controllers configured");
     }
 
     /**
