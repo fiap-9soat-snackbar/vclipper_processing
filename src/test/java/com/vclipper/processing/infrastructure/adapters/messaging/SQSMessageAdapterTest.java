@@ -16,7 +16,6 @@ import software.amazon.awssdk.services.sqs.model.SendMessageRequest;
 import software.amazon.awssdk.services.sqs.model.SendMessageResponse;
 import software.amazon.awssdk.services.sqs.model.SqsException;
 
-import java.util.Map;
 import java.util.function.Consumer;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -223,6 +222,7 @@ class SQSMessageAdapterTest {
     }
     
     @Test
+    @SuppressWarnings("unchecked")
     void isHealthy_Success() {
         // Given
         when(sqsClient.getQueueAttributes(any(Consumer.class)))
@@ -237,6 +237,7 @@ class SQSMessageAdapterTest {
     }
     
     @Test
+    @SuppressWarnings("unchecked")
     void isHealthy_Failure() {
         // Given
         when(sqsClient.getQueueAttributes(any(Consumer.class)))

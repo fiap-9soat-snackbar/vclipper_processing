@@ -9,7 +9,6 @@ import com.vclipper.processing.infrastructure.adapters.storage.S3FileStorageAdap
 import com.vclipper.processing.infrastructure.adapters.user.MockUserServiceAdapter;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.util.ReflectionTestUtils;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
