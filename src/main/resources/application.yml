@@ -6,8 +6,8 @@ spring:
     name: vclipper-processing-orchestration
   data:
     mongodb:
-       uri: mongodb+srv://${MONGODB_USER}:${MONGODB_PASSWORD}@${DB_HOST}/${MONGODB_DATABASE}
-      #uri: mongodb://${MONGODB_USER}:${MONGODB_PASSWORD}@${DB_HOST}:${DB_PORT}/${MONGODB_DATABASE}
+      uri: mongodb+srv://${MONGODB_USER}:${MONGODB_PASSWORD}@${DB_HOST}/${MONGODB_DATABASE}
+      # uri: mongodb://${MONGODB_USER}:${MONGODB_PASSWORD}@${DB_HOST}:${DB_PORT}/${MONGODB_DATABASE}
       database: ${MONGODB_DATABASE}
   servlet:
     multipart:
