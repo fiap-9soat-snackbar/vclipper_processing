@@ -304,7 +304,7 @@ class VideoRepositoryAdapterTest {
         when(repository.findById(VIDEO_ID)).thenReturn(Optional.empty());
 
         // Act & Assert
-        Exception exception = assertThrows(RuntimeException.class,
+        assertThrows(RuntimeException.class,
             () -> adapter.updateStatus(VIDEO_ID, "COMPLETED", null));
     }
 

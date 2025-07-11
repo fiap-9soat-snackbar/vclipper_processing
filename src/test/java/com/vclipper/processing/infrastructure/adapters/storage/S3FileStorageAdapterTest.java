@@ -22,11 +22,9 @@ import java.io.InputStream;
 import java.net.URL;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -299,7 +297,7 @@ class S3FileStorageAdapterTest {
     private static class URI {
         public static URL create(String uri) {
             try {
-                return new URL(uri);
+                return java.net.URI.create(uri).toURL();
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }

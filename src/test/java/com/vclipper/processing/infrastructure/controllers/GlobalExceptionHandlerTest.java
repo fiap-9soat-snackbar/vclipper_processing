@@ -1,10 +1,6 @@
 package com.vclipper.processing.infrastructure.controllers;
 
-import com.vclipper.processing.domain.exceptions.InvalidVideoFormatException;
-import com.vclipper.processing.domain.exceptions.VideoNotFoundException;
-import com.vclipper.processing.domain.exceptions.VideoNotReadyException;
 import com.vclipper.processing.domain.exceptions.VideoProcessingException;
-import com.vclipper.processing.domain.exceptions.VideoUploadException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;

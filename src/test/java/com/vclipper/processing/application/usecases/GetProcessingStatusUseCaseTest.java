@@ -27,7 +27,6 @@ class GetProcessingStatusUseCaseTest {
 
     private final String VIDEO_ID = "video-123";
     private final String USER_ID = "user-456";
-    private final String OTHER_USER_ID = "user-789";
     private final LocalDateTime CREATED_AT = LocalDateTime.now().minusHours(1);
     private final LocalDateTime UPDATED_AT = LocalDateTime.now();
 
